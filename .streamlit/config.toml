@@ -1,0 +1,14 @@
+# 生产环境：容器内监听 0.0.0.0，由 Nginx / SLB 做 TLS 与鉴权
+[server]
+headless = true
+address = "0.0.0.0"
+port = 8501
+enableCORS = false
+enableXsrfProtection = true
+maxUploadSize = 100
+
+[browser]
+gatherUsageStats = false
+
+[runner]
+fastReruns = true
