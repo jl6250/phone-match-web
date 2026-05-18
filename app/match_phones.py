@@ -214,7 +214,7 @@ def read_phones_from_excel(
     else:
         series = df.iloc[:, 0]
 
-    return [s for s in (str(x).strip() for x in series) if s and s not in ("nan", "None", "NaT")]
+    return [s.replace(" ", "") for x in series if (s := str(x).strip()) and s not in ("nan", "None", "NaT")]
 
 
 def load_warehouse_map_from_text(text: str, login_col: str, cipher_col: str) -> Tuple[Dict[str, List[str]], List[str]]:
