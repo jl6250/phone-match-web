@@ -61,3 +61,21 @@ def test_empty_sheet_returns_empty_list():
     data = _make_xlsx({"Sheet1": [["phone"]]})
     result = read_phones_from_excel(data, sheet="Sheet1", column=None)
     assert result == []
+
+
+def test_nan_and_blank_cells_filtered():
+    """NaN 单元格和空字符串不出现在结果中。"""
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Sheet1"
+    ws.append(["phone"])
+    ws.append(["13812345678"])
+    ws.append([None])          # NaN
+    ws.append([""])            # 空字符串
+    ws.append(["  "])          # 纯空格
+    ws.append(["13900000000"])
+    buf = io.BytesIO()
+    wb.save(buf)
+    result = read_phones_from_excel(buf.getvalue(), sheet="Sheet1", column=None)
+    assert result == ["13812345678", "13900000000"]
