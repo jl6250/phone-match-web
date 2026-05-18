@@ -340,7 +340,7 @@ with st.expander("① 明文手机号（各 Tab 共用）", expanded=True):
                 if selected_sheets:
                     try:
                         merged: list[str] = []
-                        for sh in selected_sheets:
+                        for sh in [s for s in sheet_names if s in set(selected_sheets)]:
                             merged.extend(read_phones_from_excel(
                                 raw_bytes,
                                 sheet=sh,
