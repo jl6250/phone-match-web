@@ -16,6 +16,8 @@ import sys
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
+import pandas as pd
+
 # 数仓默认（可用命令行覆盖）
 DEFAULT_MC_USER_TABLE = "superengineproject.dim_user_info_df"
 DEFAULT_MC_CIPHER_COLUMN = "phone_hex"
@@ -188,6 +190,31 @@ def read_phones_from_text(text: str, column: Optional[str]) -> List[str]:
 
 def read_phones_from_file(path: Path, column: Optional[str], encoding: str) -> List[str]:
     return read_phones_from_text(path.read_text(encoding=encoding), column)
+
+
+def read_phones_from_excel(
+    data: bytes,
+    sheet: "str | int",
+    column: "Optional[str]",
+) -> "List[str]":
+    """从 Excel bytes 中解析手机号列表。
+
+    sheet: Sheet 名称或索引（0-based）。
+    column: 列名；为 None 时取第一列。
+    抛出 ValueError 当指定列不存在。
+    """
+    import io as _io
+    df = pd.read_excel(_io.BytesIO(data), sheet_name=sheet, dtype=str)
+    df = df.dropna(how="all")
+
+    if column is not None:
+        if column not in df.columns:
+            raise ValueError(f"列 {column!r} 不在表头中: {list(df.columns)}")
+        series = df[column]
+    else:
+        series = df.iloc[:, 0]
+
+    return [v.strip() for v in series.astype(str).str.strip() if v.strip() and v.strip() != "nan"]
 
 
 def load_warehouse_map_from_text(text: str, login_col: str, cipher_col: str) -> Tuple[Dict[str, List[str]], List[str]]:
