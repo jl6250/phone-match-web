@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv as csv_module
 import os
 from io import StringIO
+import io
 
 import pandas as pd
 import streamlit as st
@@ -22,6 +23,7 @@ from app.match_phones import (
     build_mc_online_sql,
     compute_match_rows,
     load_warehouse_map_from_text,
+    read_phones_from_excel,
     read_phones_from_text,
 )
 
@@ -228,7 +230,7 @@ st.markdown(
     <span class="metric-chip">MD5 10位 · 去掉最左侧0</span>
     <span class="metric-chip">MD5 11位 · 左填0至11位</span>
     <span class="metric-chip yellow">文件上限 100 MB</span>
-    <span class="metric-chip green">支持 TXT / CSV / TSV</span>
+    <span class="metric-chip green">支持 TXT / CSV / TSV / Excel</span>
     <span class="metric-chip">保持原始顺序 · 重复数据原样保留</span>
   </div>
 </div>
@@ -294,8 +296,8 @@ with st.expander("① 明文手机号（各 Tab 共用）", expanded=True):
     with col_up:
         st.markdown('<p class="section-title">上传文件</p>', unsafe_allow_html=True)
         up = st.file_uploader(
-            "支持 TXT / CSV / TSV，单文件 ≤ 100 MB",
-            type=["txt", "csv", "tsv"],
+            "支持 TXT / CSV / TSV / Excel，单文件 ≤ 100 MB",
+            type=["txt", "csv", "tsv", "xlsx", "xls"],
             label_visibility="collapsed",
         )
         col_phone = st.text_input(
@@ -316,9 +318,37 @@ with st.expander("① 明文手机号（各 Tab 共用）", expanded=True):
         )
 
     body = typed
+    excel_phones: list[str] | None = None  # 非 None 时直接用，跳过 body 解析
+
     if up is not None:
-        body = up.getvalue().decode("utf-8-sig", errors="replace")
-        st.success(f"已载入上传文件（{len(body):,} 字符），覆盖文本框内容")
+        suffix = up.name.rsplit(".", 1)[-1].lower()
+        if suffix in ("xlsx", "xls"):
+            raw_bytes = up.getvalue()
+            try:
+                xf = pd.ExcelFile(io.BytesIO(raw_bytes))
+                sheet_names = xf.sheet_names
+            except Exception as e:
+                st.error(f"无法读取 Excel 文件：{e}")
+                sheet_names = []
+            if sheet_names:
+                selected_sheet = st.selectbox(
+                    "选择 Sheet",
+                    options=sheet_names,
+                    key="excel_sheet_select",
+                )
+                try:
+                    excel_phones = read_phones_from_excel(
+                        raw_bytes,
+                        sheet=selected_sheet,
+                        column=col_phone or None,
+                    )
+                    st.success(f"已从 Excel「{selected_sheet}」载入 {len(excel_phones):,} 行")
+                except (ValueError, Exception) as e:
+                    st.error(f"解析 Excel 失败：{e}")
+                    excel_phones = []
+        else:
+            body = up.getvalue().decode("utf-8-sig", errors="replace")
+            st.success(f"已载入上传文件（{len(body):,} 字符），覆盖文本框内容")
 
     upper_md5_global = st.checkbox(
         "密文 MD5 为大写十六进制",
@@ -330,7 +360,9 @@ with st.expander("① 明文手机号（各 Tab 共用）", expanded=True):
 # 解析手机号
 phones_err: str | None = None
 phones_list: list[str] = []
-if body.strip():
+if excel_phones is not None:
+    phones_list = excel_phones
+elif body.strip():
     try:
         phones_list = read_phones_from_text(body, col_phone or None)
     except ValueError as e:
