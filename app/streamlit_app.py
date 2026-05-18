@@ -331,20 +331,28 @@ with st.expander("① 明文手机号（各 Tab 共用）", expanded=True):
                 st.error(f"无法读取 Excel 文件：{e}")
                 sheet_names = []
             if sheet_names:
-                selected_sheet = st.selectbox(
-                    "选择 Sheet",
+                selected_sheets = st.multiselect(
+                    "选择 Sheet（可多选）",
                     options=sheet_names,
+                    default=sheet_names[:1],
                     key="excel_sheet_select",
                 )
-                try:
-                    excel_phones = read_phones_from_excel(
-                        raw_bytes,
-                        sheet=selected_sheet,
-                        column=col_phone or None,
-                    )
-                    st.success(f"已从 Excel「{selected_sheet}」载入 {len(excel_phones):,} 行")
-                except (ValueError, Exception) as e:
-                    st.error(f"解析 Excel 失败：{e}")
+                if selected_sheets:
+                    try:
+                        merged: list[str] = []
+                        for sh in selected_sheets:
+                            merged.extend(read_phones_from_excel(
+                                raw_bytes,
+                                sheet=sh,
+                                column=col_phone or None,
+                            ))
+                        excel_phones = merged
+                        sheets_label = "、".join(f"「{s}」" for s in selected_sheets)
+                        st.success(f"已从 {sheets_label} 载入 {len(excel_phones):,} 行")
+                    except (ValueError, Exception) as e:
+                        st.error(f"解析 Excel 失败：{e}")
+                        excel_phones = []
+                else:
                     excel_phones = []
         else:
             body = up.getvalue().decode("utf-8-sig", errors="replace")
