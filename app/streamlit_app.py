@@ -7,9 +7,7 @@ Streamlit 生产入口：生成 MC SQL、离线 CSV 比对、可选 pyodps 执�
 
 from __future__ import annotations
 
-import csv as csv_module
 import os
-from io import StringIO
 import io
 
 import pandas as pd
@@ -19,10 +17,7 @@ from app.match_phones import (
     DEFAULT_MC_CIPHER_COLUMN,
     DEFAULT_MC_PARTITION_EXPR,
     DEFAULT_MC_USER_TABLE,
-    MATCH_RESULT_HEADER,
     build_mc_online_sql,
-    compute_match_rows,
-    load_warehouse_map_from_text,
     read_phones_from_excel,
     read_phones_from_text,
 )
@@ -39,7 +34,7 @@ st.set_page_config(
     page_title="手机号 MD5 对照工具",
     page_icon="📱",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # ─── 全局 CSS ─────────────────────────────────────────────────────────────────
@@ -238,54 +233,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ─── 侧边栏 ───────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown(
-        """
-<div class="sidebar-section">
-  <h4>📖 使用说明</h4>
-  <ul style="color:#94a3b8;font-size:0.85rem;padding-left:16px;line-height:1.8;margin:0">
-    <li><b style="color:#a5b4fc">生成 SQL</b>：无需 AK，在 DataWorks / MC 控制台执行下载的 <code>.sql</code></li>
-    <li><b style="color:#a5b4fc">离线比对</b>：导出含 <code>login_name</code> + <code>phone_hex</code> 的 CSV，本机匹配</li>
-    <li><b style="color:#a5b4fc">云端执行</b>：需 <code>pyodps</code>；推荐用环境变量配置 AK</li>
-  </ul>
-</div>
-
-<div class="sidebar-section">
-  <h4>🔐 MD5 生成规则</h4>
-  <p style="color:#94a3b8;font-size:0.83rem;line-height:1.7;margin:0">
-    <b style="color:#c4b5fd">10 位</b>：去掉数字串最左侧所有 0<br>
-    <b style="color:#c4b5fd">11 位</b>：在 10 位结果左侧补 0 至 11 位<br>
-    <code style="font-size:0.78rem">13812345678 → 13812345678 / 13812345678</code><br>
-    <code style="font-size:0.78rem">08612345678 → 8612345678 / 08612345678</code>
-  </p>
-</div>
-
-<div class="sidebar-section">
-  <h4>⚙️ 环境变量</h4>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-    st.code(
-        "export ODPS_ACCESS_ID=…\n"
-        "export ODPS_ACCESS_KEY=…\n"
-        "export ODPS_PROJECT=superengineproject\n"
-        "export ODPS_ENDPOINT=https://service.cn.maxcompute.aliyun.com/api",
-        language="bash",
-    )
-    st.markdown(
-        """
-<div class="sidebar-section" style="border-color:rgba(239,68,68,0.25)">
-  <h4>🛡️ 安全提醒</h4>
-  <p style="color:#fca5a5;font-size:0.82rem;margin:0;line-height:1.6">
-    勿在共享电脑使用「手动填写 AK」。<br>
-    公网务必配合 Nginx 鉴权或 VPN。
-  </p>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
 
 # ─── 手机号输入区 ──────────────────────────────────────────────────────────────
 st.session_state.setdefault("last_sql", "")
@@ -397,8 +344,8 @@ elif phones_list:
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ─── 功能 Tabs ────────────────────────────────────────────────────────────────
-tab_sql, tab_offline, tab_cloud = st.tabs(
-    ["🗄️ 生成 MaxCompute SQL", "📂 离线 CSV 比对", "☁️ MC 云端执行"]
+tab_sql, tab_cloud = st.tabs(
+    ["🗄️ 生成 MaxCompute SQL", "☁️ MC 云端执行"]
 )
 
 # ── Tab 1：生成 SQL ──────────────────────────────────────────────────────────
@@ -456,154 +403,6 @@ with tab_sql:
             except ValueError as e:
                 st.error(str(e))
 
-# ── Tab 2：离线比对 ──────────────────────────────────────────────────────────
-with tab_offline:
-    st.markdown("对照表需含 `login_name` 与密文列（默认列名 `phone_hex`）。")
-
-    col_a, col_b = st.columns([2, 1], gap="large")
-    with col_a:
-        wh_file = st.file_uploader(
-            "上传对照表（CSV / TSV / TXT，含表头）",
-            type=["csv", "tsv", "txt"],
-            key="wh_up",
-        )
-    with col_b:
-        enc = st.selectbox("文件编码", ["utf-8-sig", "utf-8", "gb18030"], key="wh_enc")
-        wh_login = st.text_input("登录名列", value="login_name", key="wh_login")
-        wh_cipher = st.text_input("密文列", value=DEFAULT_MC_CIPHER_COLUMN, key="wh_cipher")
-
-    if st.button("执行离线比对", type="primary", key="btn_off"):
-        if not phones_list:
-            st.warning("请先在上方填写或上传明文手机号")
-        elif wh_file is None:
-            st.warning("请上传对照表文件")
-        else:
-            try:
-                with st.spinner("比对中…"):
-                    wh_text = wh_file.read().decode(enc, errors="replace")
-                    cmap, warns = load_warehouse_map_from_text(
-                        wh_text,
-                        wh_login.strip(),
-                        wh_cipher.strip(),
-                    )
-                    for w in warns:
-                        st.warning(w)
-                    rows = compute_match_rows(phones_list, cmap, upper_md5_global)
-
-                df = pd.DataFrame(rows, columns=MATCH_RESULT_HEADER)
-                matched = df[df["login_name"] != ""]
-                unmatched = df[df["login_name"] == ""]
-
-                st.markdown(
-                    f'<div class="metric-row">'
-                    f'<span class="metric-chip">共 {len(df):,} 条</span>'
-                    f'<span class="metric-chip green">命中 {len(matched):,} 条</span>'
-                    f'<span class="metric-chip red">未命中 {len(unmatched):,} 条</span>'
-                    f'<span class="metric-chip yellow">命中率 {len(matched)/len(df)*100:.1f}%</span>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
-
-                st.dataframe(
-                    df,
-                    use_container_width=True,
-                    height=400,
-                    column_config={
-                        "plain_input":   st.column_config.TextColumn("明文手机号"),
-                        "digits_only":   st.column_config.TextColumn("纯数字"),
-                        "md5_key_10":    st.column_config.TextColumn("10位密钥"),
-                        "md5_hex_10":    st.column_config.TextColumn("MD5(10位)"),
-                        "md5_key_11":    st.column_config.TextColumn("11位密钥"),
-                        "md5_hex_11":    st.column_config.TextColumn("MD5(11位)"),
-                        "match_via":     st.column_config.TextColumn("命中方式"),
-                        "matched_cipher":st.column_config.TextColumn("仓库密文"),
-                        "login_name":    st.column_config.TextColumn("login_name"),
-                        "note":          st.column_config.TextColumn("备注"),
-                    },
-                )
-
-                buf = StringIO()
-                w = csv_module.writer(buf)
-                w.writerow(MATCH_RESULT_HEADER)
-                w.writerows(rows)
-                st.download_button(
-                    "⬇️ 下载结果 CSV",
-                    buf.getvalue(),
-                    file_name="phone_login_match_result.csv",
-                    mime="text/csv; charset=utf-8",
-                    key="dl_off",
-                )
-            except ValueError as e:
-                st.error(str(e))
-
-# ── Tab 3：MC 云端执行 ────────────────────────────────────────────────────────
+# ── Tab 2：MC 云端执行 ────────────────────────────────────────────────────────
 with tab_cloud:
-    st.markdown(
-        f"默认 Endpoint `{DEFAULT_ENDPOINT}` ，Project `{DEFAULT_PROJECT}`。"
-        "页面关闭后 AK 不会保留。"
-    )
-
-    sql_to_run = st.text_area(
-        "待执行 SQL",
-        value=st.session_state.get("last_sql", ""),
-        height=260,
-        key="sql_odps_run",
-        placeholder="可先在「生成 SQL」页生成并自动带入；或粘贴其它 SELECT",
-    )
-
-    col_p1, col_p2 = st.columns(2, gap="large")
-    with col_p1:
-        proj = st.text_input("MaxCompute Project", value=DEFAULT_PROJECT, key="odps_proj")
-    with col_p2:
-        endpoint = st.text_input("Endpoint", value=DEFAULT_ENDPOINT, key="odps_ep")
-
-    use_env = st.checkbox(
-        "使用环境变量中的 ODPS_ACCESS_ID / ODPS_ACCESS_KEY",
-        value=True,
-        key="odps_use_env",
-    )
-    aid = ENV_ACCESS_ID if use_env else ""
-    akey = ENV_ACCESS_KEY if use_env else ""
-    if use_env and not (ENV_ACCESS_ID and ENV_ACCESS_KEY):
-        st.info("环境变量未配置完整，可取消勾选后在下方临时填写（勿截屏）。")
-
-    if not use_env:
-        col_k1, col_k2 = st.columns(2)
-        with col_k1:
-            aid = st.text_input("AccessKey Id", key="odps_aid")
-        with col_k2:
-            akey = st.text_input("AccessKey Secret", type="password", key="odps_akey")
-
-    if st.button("在 MaxCompute 执行", type="primary", key="btn_odps"):
-        if not sql_to_run.strip():
-            st.warning("请填入 SQL")
-        elif not proj.strip():
-            st.warning("请填写 Project")
-        elif not aid or not akey:
-            st.error("需要提供 AccessKey")
-        else:
-            try:
-                with st.spinner("执行中，请稍候…"):
-                    from app.odps_runner import execute_odps_sql
-
-                    df = execute_odps_sql(
-                        sql_to_run.strip(),
-                        access_id=aid.strip(),
-                        access_key=akey.strip(),
-                        project=proj.strip(),
-                        endpoint=endpoint.strip(),
-                    )
-                st.success(f"执行成功，共返回 {len(df):,} 行")
-                st.dataframe(df, use_container_width=True, height=400)
-                csv_bytes = df.to_csv(index=False).encode("utf-8-sig")
-                st.download_button(
-                    "⬇️ 下载查询结果 CSV",
-                    csv_bytes,
-                    file_name="odps_query_result.csv",
-                    mime="text/csv",
-                    key="dl_odps",
-                )
-            except RuntimeError as e:
-                st.error(str(e))
-            except Exception as e:
-                st.exception(e)
+    st.info("🚧 功能待开发")
