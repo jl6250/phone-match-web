@@ -28,6 +28,15 @@ def digits_only(raw: str) -> str:
     return "".join(ch for ch in raw if ch.isdigit())
 
 
+def normalize_ph_mobile(raw: str) -> str:
+    """Strip +63/63 country code; return 10-digit or 0-prefixed 11-digit PH mobile."""
+    d = digits_only(raw)
+    # +639XXXXXXXXX → 9XXXXXXXXX (12→10), +6309XXXXXXXXX → 09XXXXXXXXX (13→11)
+    if d.startswith("63") and len(d) in (12, 13):
+        d = d[2:]
+    return d
+
+
 def md5_hex_lower(s: str) -> str:
     return hashlib.md5(s.encode("utf-8")).hexdigest()
 
@@ -159,7 +168,7 @@ def read_phones_from_text(text: str, column: Optional[str]) -> List[str]:
             line = line.strip()
             if line:
                 rows.append(line)
-        return rows
+        return [n for r in rows if (n := normalize_ph_mobile(r))]
 
     sample = text[:4096]
     delimiter = "\t" if sample.count("\t") > sample.count(",") else ","
@@ -185,7 +194,7 @@ def read_phones_from_text(text: str, column: Optional[str]) -> List[str]:
             v = row[col_idx].strip()
             if v:
                 rows.append(v)
-    return rows
+    return [n for r in rows if (n := normalize_ph_mobile(r))]
 
 
 def read_phones_from_file(path: Path, column: Optional[str], encoding: str) -> List[str]:
@@ -214,7 +223,11 @@ def read_phones_from_excel(
     else:
         series = df.iloc[:, 0]
 
-    return [s.replace(" ", "") for x in series if (s := str(x).strip()) and s not in ("nan", "None", "NaT")]
+    return [
+        n for x in series
+        if (s := str(x).strip().replace("_x000D_", "").replace("\r", "")) and s not in ("nan", "None", "NaT")
+        if (n := normalize_ph_mobile(s))
+    ]
 
 
 def load_warehouse_map_from_text(text: str, login_col: str, cipher_col: str) -> Tuple[Dict[str, List[str]], List[str]]:
