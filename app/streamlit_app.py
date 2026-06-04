@@ -7,11 +7,13 @@ Streamlit 生产入口：生成 MC SQL、离线 CSV 比对、可选 pyodps 执�
 
 from __future__ import annotations
 
+import json
 import os
 import io
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from app.match_phones import (
     DEFAULT_MC_CIPHER_COLUMN,
@@ -21,6 +23,33 @@ from app.match_phones import (
     read_phones_from_excel,
     read_phones_from_text,
 )
+
+def _copy_button(text: str, label: str = "📋 复制") -> None:
+    payload = json.dumps(text)
+    components.html(
+        f"""
+        <style>
+          #cb{{background:#7B2FBE;color:#fff;border:none;border-radius:6px;
+               padding:6px 18px;font-size:14px;cursor:pointer;font-family:sans-serif;}}
+          #cb:hover{{background:#6a26a8;}}
+        </style>
+        <button id="cb" onclick="
+          var t=document.createElement('textarea');
+          t.value={payload};
+          t.style.cssText='position:fixed;opacity:0;top:0;left:0';
+          document.body.appendChild(t);t.focus();t.select();
+          document.execCommand('copy');
+          document.body.removeChild(t);
+          this.textContent='✓ 已复制';this.style.background='#2d8a4e';
+          setTimeout(function(){{
+            var b=document.getElementById('cb');
+            if(b){{b.textContent='{label}';b.style.background='#7B2FBE';}}
+          }},2000);
+        ">{label}</button>
+        """,
+        height=44,
+    )
+
 
 DEFAULT_ENDPOINT = os.environ.get(
     "ODPS_ENDPOINT",
@@ -393,6 +422,7 @@ with tab_sql:
                     unsafe_allow_html=True,
                 )
                 st.code(sql, language="sql")
+                _copy_button(sql, "📋 复制 SQL")
                 st.download_button(
                     "⬇️ 下载 phone_match_odps.sql",
                     sql,
