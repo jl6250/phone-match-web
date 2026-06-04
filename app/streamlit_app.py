@@ -27,26 +27,33 @@ from app.match_phones import (
 def _copy_button(text: str, label: str = "📋 复制") -> None:
     payload = json.dumps(text)
     components.html(
-        f"""
-        <style>
-          #cb{{background:#7B2FBE;color:#fff;border:none;border-radius:6px;
-               padding:6px 18px;font-size:14px;cursor:pointer;font-family:sans-serif;}}
-          #cb:hover{{background:#6a26a8;}}
-        </style>
-        <button id="cb" onclick="
-          var t=document.createElement('textarea');
-          t.value={payload};
-          t.style.cssText='position:fixed;opacity:0;top:0;left:0';
-          document.body.appendChild(t);t.focus();t.select();
-          document.execCommand('copy');
-          document.body.removeChild(t);
-          this.textContent='✓ 已复制';this.style.background='#2d8a4e';
-          setTimeout(function(){{
-            var b=document.getElementById('cb');
-            if(b){{b.textContent='{label}';b.style.background='#7B2FBE';}}
-          }},2000);
-        ">{label}</button>
-        """,
+        f"""<!DOCTYPE html><html><head><style>
+          button{{background:#7B2FBE;color:#fff;border:none;border-radius:6px;
+                  padding:6px 18px;font-size:14px;cursor:pointer;font-family:sans-serif;}}
+          button:hover{{background:#6a26a8;}}
+        </style></head><body>
+        <button id="cb" onclick="doCopy()">📋 复制 SQL</button>
+        <script>
+          var _TEXT = {payload};
+          function doCopy() {{
+            var t = document.createElement('textarea');
+            t.value = _TEXT;
+            t.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+            document.body.appendChild(t); t.focus(); t.select();
+            var ok = document.execCommand('copy');
+            document.body.removeChild(t);
+            var b = document.getElementById('cb');
+            if (ok) {{
+              b.textContent = '✓ 已复制'; b.style.background = '#2d8a4e';
+            }} else {{
+              b.textContent = '✗ 失败'; b.style.background = '#c0392b';
+            }}
+            setTimeout(function() {{
+              b.textContent = '📋 复制 SQL'; b.style.background = '#7B2FBE';
+            }}, 2000);
+          }}
+        </script>
+        </body></html>""",
         height=44,
     )
 
