@@ -264,12 +264,12 @@ st.markdown(
 <div class="hero-card">
   <p class="hero-title">📱 手机号 MD5 对照工具</p>
   <p class="hero-sub">
-    将明文手机号转换为 MD5 密文，与数仓 <code>login_name</code> 进行关联匹配 &nbsp;·&nbsp;
+    支持明文手机号（自动转 MD5）或直接输入 MD5 密文，与数仓 <code>login_name</code> 关联匹配 &nbsp;·&nbsp;
     默认表 <code>superengineproject.dim_user_info_df</code>（phone_hex，pt=MAX_PT）
   </p>
   <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
-    <span class="metric-chip">MD5 10位 · 去掉最左侧0</span>
-    <span class="metric-chip">MD5 11位 · 左填0至11位</span>
+    <span class="metric-chip">明文：MD5 10位去0 / 11位补0</span>
+    <span class="metric-chip">MD5 密文：直接匹配</span>
     <span class="metric-chip yellow">文件上限 100 MB</span>
     <span class="metric-chip green">支持 TXT / CSV / TSV / Excel</span>
     <span class="metric-chip">超大输入自动分批 SQL</span>
@@ -284,7 +284,7 @@ st.markdown(
 # ─── 手机号输入区 ──────────────────────────────────────────────────────────────
 st.session_state.setdefault("last_sql", "")
 
-with st.expander("① 明文手机号（各 Tab 共用）", expanded=True):
+with st.expander("① 输入数据：明文手机号 / MD5 密文（各 Tab 共用）", expanded=True):
     input_kind = st.radio(
         "输入类型",
         options=["明文手机号", "MD5 密文"],
@@ -313,7 +313,7 @@ with st.expander("① 明文手机号（各 Tab 共用）", expanded=True):
         )
 
     with col_paste:
-        st.markdown('<p class="section-title">粘贴明文</p>', unsafe_allow_html=True)
+        st.markdown('<p class="section-title">粘贴数据</p>', unsafe_allow_html=True)
         typed = st.text_area(
             "一行一个，或粘贴表格",
             height=160,
@@ -456,7 +456,7 @@ with tab_sql:
 
     if st.button("生成 SQL", type="primary", key="btn_sql", use_container_width=False):
         if not phones_list:
-            st.warning("请先在上方填写或上传明文手机号")
+            st.warning("请先在上方填写或上传数据（明文手机号或 MD5 密文）")
         else:
             def _builder(rows: list[str]) -> str:
                 if is_md5_mode:
