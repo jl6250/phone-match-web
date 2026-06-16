@@ -165,6 +165,67 @@ ORDER BY k.rn;
 """
 
 
+def build_mc_md5_match_sql(
+    md5_rows: List[str],
+    *,
+    mc_table: str,
+    login_column: str,
+    cipher_column: str,
+    partition_predicate: str,
+    extra_where: Optional[str],
+) -> str:
+    """生成 MaxCompute 直接匹配 SQL：输入已是 MD5 hex，直接 IN 过滤密文列。"""
+    if not md5_rows:
+        raise ValueError("无 MD5，无法生成 SQL")
+
+    values_sql = ",\n    ".join(
+        f"({i + 1}, {sql_escape_literal(h)})" for i, h in enumerate(md5_rows)
+    )
+
+    extra = ""
+    if extra_where and extra_where.strip():
+        extra = f"\n    AND ({extra_where.strip()})"
+
+    lc, cc = login_column.strip(), cipher_column.strip()
+
+    return f"""-- 由 phone-match-web（MD5 直接匹配）生成（MaxCompute / ODPS）
+-- 用户表: {mc_table} | 密文列: {cc} | 分区: {partition_predicate}
+-- 输入已是 MD5 密文，直接以 {cc} IN (...) 过滤大表，结果按输入顺序排列
+set odps.sql.validate.orderby.limit=false;
+
+WITH raw_input AS (
+  SELECT * FROM VALUES
+    {values_sql}
+  AS t(rn, md5_raw)
+),
+norm AS (
+  SELECT rn, md5_raw, LOWER(TRIM(md5_raw)) AS h FROM raw_input
+),
+hash_filter AS (
+  SELECT DISTINCT h FROM norm
+),
+-- 仓库侧：每个 cipher 取一个 login_name（GROUP BY 消除重复，避免 JOIN 膨胀）
+u_cipher_map AS (
+  SELECT
+    LOWER(TRIM({cc})) AS cipher_key,
+    MAX({lc})         AS login_name
+  FROM {mc_table}
+  WHERE {partition_predicate}
+    AND {cc} IS NOT NULL
+    AND LOWER(TRIM({cc})) IN (SELECT h FROM hash_filter){extra}
+  GROUP BY LOWER(TRIM({cc}))
+)
+SELECT
+  n.md5_raw,
+  u.login_name,
+  u.cipher_key AS matched_cipher_in_warehouse,
+  CASE WHEN u.login_name IS NOT NULL THEN 'matched' ELSE NULL END AS match_via
+FROM norm n
+LEFT JOIN u_cipher_map u ON n.h = u.cipher_key
+ORDER BY n.rn;
+"""
+
+
 def read_phones_from_text(
     text: str,
     column: Optional[str],

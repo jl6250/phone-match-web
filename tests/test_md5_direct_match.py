@@ -65,3 +65,71 @@ def test_read_text_default_normalizer_unchanged():
     text = "+639171234567\n13812345678\n"
     result = read_phones_from_text(text, None)
     assert result == ["9171234567", "13812345678"]
+
+
+from app.match_phones import build_mc_md5_match_sql
+
+_H1 = "d41d8cd98f00b204e9800998ecf8427e"
+_H2 = "900150983cd24fb0d6963f7d28e17f72"
+
+
+def test_build_md5_sql_contains_all_hashes():
+    sql = build_mc_md5_match_sql(
+        [_H1, _H2],
+        mc_table="proj.tbl",
+        login_column="login_name",
+        cipher_column="phone_hex",
+        partition_predicate="pt = '20260101'",
+        extra_where=None,
+    )
+    assert _H1 in sql
+    assert _H2 in sql
+
+
+def test_build_md5_sql_has_in_filter_and_no_md5_compute():
+    sql = build_mc_md5_match_sql(
+        [_H1],
+        mc_table="proj.tbl",
+        login_column="login_name",
+        cipher_column="phone_hex",
+        partition_predicate="pt = '20260101'",
+        extra_where=None,
+    )
+    assert "IN (SELECT h FROM hash_filter)" in sql
+    assert "md5(" not in sql.lower()
+
+
+def test_build_md5_sql_orders_by_rn():
+    sql = build_mc_md5_match_sql(
+        [_H1, _H2],
+        mc_table="proj.tbl",
+        login_column="login_name",
+        cipher_column="phone_hex",
+        partition_predicate="pt = '20260101'",
+        extra_where=None,
+    )
+    assert "ORDER BY n.rn" in sql
+
+
+def test_build_md5_sql_extra_where_injected():
+    sql = build_mc_md5_match_sql(
+        [_H1],
+        mc_table="proj.tbl",
+        login_column="login_name",
+        cipher_column="phone_hex",
+        partition_predicate="pt = '20260101'",
+        extra_where="business_line = 'bp'",
+    )
+    assert "business_line = 'bp'" in sql
+
+
+def test_build_md5_sql_empty_raises():
+    with pytest.raises(ValueError):
+        build_mc_md5_match_sql(
+            [],
+            mc_table="proj.tbl",
+            login_column="login_name",
+            cipher_column="phone_hex",
+            partition_predicate="pt = '20260101'",
+            extra_where=None,
+        )
