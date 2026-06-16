@@ -194,3 +194,64 @@ def test_batches_oversize_single_row_no_infinite_loop():
 def test_batches_empty_raises():
     with pytest.raises(ValueError):
         build_sql_batches([], _md5_builder, max_bytes=120_000)
+
+
+# ── 多列手机号 ────────────────────────────────────────────────────────────────
+from app.match_phones import (
+    list_columns_from_text,
+    list_columns_from_excel,
+    read_phones_from_excel,
+)
+
+
+def test_read_text_multi_columns_row_major():
+    text = "a,b\n13800000001,13800000002\n13800000003,13800000004\n"
+    result = read_phones_from_text(text, ["a", "b"])
+    # 行优先：第一行的 a,b 再第二行的 a,b
+    assert result == ["13800000001", "13800000002", "13800000003", "13800000004"]
+
+
+def test_read_text_multi_columns_skips_missing():
+    text = "a,b\n13800000001,13800000002\n"
+    # c 不存在 → 跳过，不报错
+    result = read_phones_from_text(text, ["a", "c"])
+    assert result == ["13800000001"]
+
+
+def test_read_text_single_column_still_raises_on_missing():
+    text = "a,b\n13800000001,13800000002\n"
+    with pytest.raises(ValueError):
+        read_phones_from_text(text, "missing")
+
+
+def test_list_columns_from_text_csv():
+    text = "phone1,phone2,name\n13800000001,13800000002,alice\n"
+    assert list_columns_from_text(text) == ["phone1", "phone2", "name"]
+
+
+def test_list_columns_from_text_plain_returns_empty():
+    text = "13800000001\n13800000002\n"
+    assert list_columns_from_text(text) == []
+
+
+def _make_xlsx_multi(rows, cols, sheet="Sheet1"):
+    import io as _io
+    import pandas as _pd
+    buf = _io.BytesIO()
+    with _pd.ExcelWriter(buf, engine="openpyxl") as w:
+        _pd.DataFrame(rows, columns=cols).to_excel(w, sheet_name=sheet, index=False)
+    return buf.getvalue()
+
+
+def test_read_excel_multi_columns_row_major():
+    data = _make_xlsx_multi(
+        [["13800000001", "13800000002"], ["13800000003", "13800000004"]],
+        ["a", "b"],
+    )
+    result = read_phones_from_excel(data, sheet="Sheet1", column=["a", "b"])
+    assert result == ["13800000001", "13800000002", "13800000003", "13800000004"]
+
+
+def test_list_columns_from_excel():
+    data = _make_xlsx_multi([["13800000001", "x"]], ["phone", "note"])
+    assert list_columns_from_excel(data, sheet="Sheet1") == ["phone", "note"]

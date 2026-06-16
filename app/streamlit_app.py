@@ -24,6 +24,8 @@ from app.match_phones import (
     build_mc_online_sql,
     build_sql_batches,
     is_md5_hex,
+    list_columns_from_excel,
+    list_columns_from_text,
     normalize_ph_mobile,
     read_phones_from_excel,
     read_phones_from_text,
@@ -272,6 +274,7 @@ st.markdown(
     <span class="metric-chip">MD5 密文：直接匹配</span>
     <span class="metric-chip yellow">文件上限 100 MB</span>
     <span class="metric-chip green">支持 TXT / CSV / TSV / Excel</span>
+    <span class="metric-chip">多 Sheet · 多列手机号</span>
     <span class="metric-chip">超大输入自动分批 SQL</span>
     <span class="metric-chip">保持原始顺序 · 重复数据原样保留</span>
   </div>
@@ -306,10 +309,10 @@ with st.expander("① 输入数据：明文手机号 / MD5 密文（各 Tab 共�
             label_visibility="collapsed",
         )
         col_phone = st.text_input(
-            "CSV/TSV 列名",
+            "CSV/TSV 列名（粘贴文本用；上传文件改用下方多选）",
             value="",
             placeholder="留空：纯文本一行一个；多列无表头取第一列",
-            help="当文件含多列时指定手机号所在列名",
+            help="粘贴文本时指定手机号所在列名；上传含表头的文件时用「选择手机号列」多选框",
         )
 
     with col_paste:
@@ -342,22 +345,62 @@ with st.expander("① 输入数据：明文手机号 / MD5 密文（各 Tab 共�
                     default=sheet_names[:1],
                     key="excel_sheet_select",
                 )
+                ordered_sheets = [s for s in sheet_names if s in set(selected_sheets)]
+                # 选中 Sheet 的列名并集（保持出现顺序）
+                union_cols: list[str] = []
+                for sh in ordered_sheets:
+                    try:
+                        for c in list_columns_from_excel(raw_bytes, sheet=sh):
+                            if c not in union_cols:
+                                union_cols.append(c)
+                    except Exception:
+                        pass
+                chosen_cols = st.multiselect(
+                    "选择手机号列（可多选，留空=各表第一列）",
+                    options=union_cols,
+                    default=[],
+                    key="excel_col_select",
+                    help="跨多个 Sheet 时为列名并集；某 Sheet 没有的列会自动跳过",
+                )
                 if selected_sheets:
+                    col_arg = chosen_cols if chosen_cols else (col_phone or None)
                     try:
                         merged: list[str] = []
-                        for sh in [s for s in sheet_names if s in set(selected_sheets)]:
+                        for sh in ordered_sheets:
                             merged.extend(read_phones_from_excel(
-                                raw_bytes, sheet=sh, column=col_phone or None,
+                                raw_bytes, sheet=sh, column=col_arg,
                                 normalizer=_normalizer,
                             ))
                         excel_phones = merged
                         sheets_label = "、".join(f"「{s}」" for s in selected_sheets)
-                        st.success(f"已从 {sheets_label} 载入 {len(excel_phones):,} 行")
+                        cols_label = ("列 " + "、".join(chosen_cols)) if chosen_cols else "第一列"
+                        st.success(f"已从 {sheets_label} 的 {cols_label} 载入 {len(excel_phones):,} 行")
                     except (ValueError, Exception) as e:
                         st.error(f"解析 Excel 失败：{e}")
                         excel_phones = []
                 else:
                     excel_phones = []
+        elif suffix in ("csv", "tsv"):
+            text = up.getvalue().decode("utf-8-sig", errors="replace")
+            cols = list_columns_from_text(text)
+            if len(cols) > 1:
+                chosen_cols = st.multiselect(
+                    "选择手机号列（可多选，留空=第一列）",
+                    options=cols,
+                    default=[],
+                    key="csv_col_select",
+                )
+                col_arg = chosen_cols if chosen_cols else (col_phone or None)
+                try:
+                    excel_phones = read_phones_from_text(text, col_arg, normalizer=_normalizer)
+                    cols_label = ("列 " + "、".join(chosen_cols)) if chosen_cols else "第一列"
+                    st.success(f"已从 {cols_label} 载入 {len(excel_phones):,} 行")
+                except ValueError as e:
+                    st.error(f"解析失败：{e}")
+                    excel_phones = []
+            else:
+                body = text
+                st.success(f"已载入上传文件（{len(body):,} 字符），覆盖文本框内容")
         else:
             body = up.getvalue().decode("utf-8-sig", errors="replace")
             st.success(f"已载入上传文件（{len(body):,} 字符），覆盖文本框内容")

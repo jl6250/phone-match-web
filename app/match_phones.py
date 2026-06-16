@@ -15,7 +15,10 @@ import hashlib
 import re
 import sys
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+
+# column 选择：None=首列/整行；str=单列；Sequence[str]=多列
+ColumnSpec = Union[str, Sequence[str], None]
 
 import pandas as pd
 
@@ -263,18 +266,26 @@ def build_sql_batches(
 
 def read_phones_from_text(
     text: str,
-    column: Optional[str],
+    column: ColumnSpec,
     normalizer: Callable[[str], str] = normalize_ph_mobile,
 ) -> List[str]:
-    """从已解码文本解析手机号（或其他值）列表；列名找不到时抛出 ValueError。
+    """从已解码文本解析手机号（或其他值）列表。
 
-    normalizer: 对每个原始字符串做规范化；返回空串则丢弃该行。
+    column:
+      - None：纯文本一行一个；含分隔符时取第一列。
+      - str：单列（列名找不到时抛出 ValueError）。
+      - Sequence[str]：多列，按「行优先」展开；缺失的列跳过（不报错）。
+    normalizer: 对每个原始字符串做规范化；返回空串则丢弃该值。
     默认为 normalize_ph_mobile（明文 PH 手机号去国家码逻辑）。
     """
     rows: List[str] = []
     lines_split = text.splitlines()
     if not lines_split:
         return []
+
+    multi = isinstance(column, (list, tuple))
+    single = isinstance(column, str)
+
     first = lines_split[0]
     if column is None and "," not in first and "\t" not in first:
         for line in lines_split:
@@ -289,16 +300,29 @@ def read_phones_from_text(
     lines = list(reader)
     if not lines:
         return []
+
+    if multi:
+        header = [h.strip() for h in lines[0]]
+        idxs = [header.index(c) for c in column if c in header]  # 缺失列跳过
+        out: List[str] = []
+        for row in lines[1:]:
+            if not row:
+                continue
+            for ci in idxs:  # 行优先：同一行内按所选列顺序
+                if ci < len(row):
+                    v = row[ci].strip()
+                    if v and (n := normalizer(v)):
+                        out.append(n)
+        return out
+
     start = 0
     col_idx = 0
-    if column:
+    if single:
         header = [h.strip() for h in lines[0]]
         if column not in header:
             raise ValueError(f"列 {column!r} 不在表头中: {header}")
         col_idx = header.index(column)
         start = 1
-    else:
-        col_idx = 0
 
     for row in lines[start:]:
         if not row:
@@ -310,6 +334,20 @@ def read_phones_from_text(
     return [n for r in rows if (n := normalizer(r))]
 
 
+def list_columns_from_text(text: str) -> List[str]:
+    """解析 CSV/TSV 文本表头，返回列名列表（首行）。纯文本/空返回 []。"""
+    lines = text.splitlines()
+    if not lines:
+        return []
+    first = lines[0]
+    if "," not in first and "\t" not in first:
+        return []  # 纯文本一行一个，无表头
+    sample = text[:4096]
+    delimiter = "\t" if sample.count("\t") > sample.count(",") else ","
+    header = next(csv.reader([first], delimiter=delimiter), [])
+    return [h.strip() for h in header]
+
+
 def read_phones_from_file(
     path: Path,
     column: Optional[str],
@@ -319,23 +357,41 @@ def read_phones_from_file(
     return read_phones_from_text(path.read_text(encoding=encoding), column, normalizer)
 
 
+def _clean_excel_cell(x: object) -> str:
+    """清洗单元格字符串：去空白与 _x000D_/\\r 伪影；空占位返回空串。"""
+    s = str(x).strip().replace("_x000D_", "").replace("\r", "")
+    return "" if s in ("nan", "None", "NaT") else s
+
+
 def read_phones_from_excel(
     data: bytes,
     sheet: "str | int",
-    column: "Optional[str]",
+    column: ColumnSpec,
     normalizer: "Callable[[str], str]" = normalize_ph_mobile,
 ) -> "List[str]":
     """从 Excel bytes 中解析手机号（或其他值）列表。
 
     sheet: Sheet 名称或索引（0-based）。
-    column: 列名；为 None 时取第一列。
-    normalizer: 对每个原始字符串做规范化；返回空串则丢弃该行。
+    column:
+      - None：取第一列。
+      - str：单列（不存在时抛出 ValueError）。
+      - Sequence[str]：多列，按「行优先」展开；缺失的列跳过（不报错）。
+    normalizer: 对每个原始字符串做规范化；返回空串则丢弃该值。
     默认为 normalize_ph_mobile（明文 PH 手机号去国家码逻辑）。
-    抛出 ValueError 当指定列不存在。
     """
     import io as _io
     df = pd.read_excel(_io.BytesIO(data), sheet_name=sheet, dtype=str)
     df = df.dropna(how="all")
+
+    if isinstance(column, (list, tuple)):
+        cols = [c for c in column if c in df.columns]  # 缺失列跳过
+        out: List[str] = []
+        for _, row in df.iterrows():
+            for c in cols:  # 行优先：同一行内按所选列顺序
+                s = _clean_excel_cell(row[c])
+                if s and (n := normalizer(s)):
+                    out.append(n)
+        return out
 
     if column is not None:
         if column not in df.columns:
@@ -346,9 +402,16 @@ def read_phones_from_excel(
 
     return [
         n for x in series
-        if (s := str(x).strip().replace("_x000D_", "").replace("\r", "")) and s not in ("nan", "None", "NaT")
+        if (s := _clean_excel_cell(x))
         if (n := normalizer(s))
     ]
+
+
+def list_columns_from_excel(data: bytes, sheet: "str | int") -> List[str]:
+    """返回指定 Sheet 的列名列表（仅读表头，不读数据）。"""
+    import io as _io
+    df = pd.read_excel(_io.BytesIO(data), sheet_name=sheet, dtype=str, nrows=0)
+    return [str(c) for c in df.columns]
 
 
 def load_warehouse_map_from_text(text: str, login_col: str, cipher_col: str) -> Tuple[Dict[str, List[str]], List[str]]:
