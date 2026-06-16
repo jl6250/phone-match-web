@@ -165,8 +165,16 @@ ORDER BY k.rn;
 """
 
 
-def read_phones_from_text(text: str, column: Optional[str]) -> List[str]:
-    """从已解码文本解析手机号列表；列名找不到时抛出 ValueError。"""
+def read_phones_from_text(
+    text: str,
+    column: Optional[str],
+    normalizer: Callable[[str], str] = normalize_ph_mobile,
+) -> List[str]:
+    """从已解码文本解析手机号（或其他值）列表；列名找不到时抛出 ValueError。
+
+    normalizer: 对每个原始字符串做规范化；返回空串则丢弃该行。
+    默认为 normalize_ph_mobile（明文 PH 手机号去国家码逻辑）。
+    """
     rows: List[str] = []
     lines_split = text.splitlines()
     if not lines_split:
@@ -177,7 +185,7 @@ def read_phones_from_text(text: str, column: Optional[str]) -> List[str]:
             line = line.strip()
             if line:
                 rows.append(line)
-        return [n for r in rows if (n := normalize_ph_mobile(r))]
+        return [n for r in rows if (n := normalizer(r))]
 
     sample = text[:4096]
     delimiter = "\t" if sample.count("\t") > sample.count(",") else ","
@@ -203,22 +211,30 @@ def read_phones_from_text(text: str, column: Optional[str]) -> List[str]:
             v = row[col_idx].strip()
             if v:
                 rows.append(v)
-    return [n for r in rows if (n := normalize_ph_mobile(r))]
+    return [n for r in rows if (n := normalizer(r))]
 
 
-def read_phones_from_file(path: Path, column: Optional[str], encoding: str) -> List[str]:
-    return read_phones_from_text(path.read_text(encoding=encoding), column)
+def read_phones_from_file(
+    path: Path,
+    column: Optional[str],
+    encoding: str,
+    normalizer: Callable[[str], str] = normalize_ph_mobile,
+) -> List[str]:
+    return read_phones_from_text(path.read_text(encoding=encoding), column, normalizer)
 
 
 def read_phones_from_excel(
     data: bytes,
     sheet: "str | int",
     column: "Optional[str]",
+    normalizer: "Callable[[str], str]" = normalize_ph_mobile,
 ) -> "List[str]":
-    """从 Excel bytes 中解析手机号列表。
+    """从 Excel bytes 中解析手机号（或其他值）列表。
 
     sheet: Sheet 名称或索引（0-based）。
     column: 列名；为 None 时取第一列。
+    normalizer: 对每个原始字符串做规范化；返回空串则丢弃该行。
+    默认为 normalize_ph_mobile（明文 PH 手机号去国家码逻辑）。
     抛出 ValueError 当指定列不存在。
     """
     import io as _io
@@ -235,7 +251,7 @@ def read_phones_from_excel(
     return [
         n for x in series
         if (s := str(x).strip().replace("_x000D_", "").replace("\r", "")) and s not in ("nan", "None", "NaT")
-        if (n := normalize_ph_mobile(s))
+        if (n := normalizer(s))
     ]
 
 

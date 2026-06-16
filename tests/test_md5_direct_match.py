@@ -32,3 +32,36 @@ def test_is_md5_hex_non_hex_char():
 
 def test_is_md5_hex_empty():
     assert is_md5_hex("") is False
+
+
+from app.match_phones import read_phones_from_text
+
+
+def _md5_keep(s: str) -> str:
+    """MD5 模式 normalizer：strip+lower，保留非空（不在此处校验 hex）。"""
+    return s.strip().lower()
+
+
+def test_read_text_with_md5_normalizer_plain_lines():
+    text = "D41D8CD98F00B204E9800998ECF8427E\n900150983cd24fb0d6963f7d28e17f72\n"
+    result = read_phones_from_text(text, None, normalizer=_md5_keep)
+    assert result == [
+        "d41d8cd98f00b204e9800998ecf8427e",
+        "900150983cd24fb0d6963f7d28e17f72",
+    ]
+
+
+def test_read_text_with_md5_normalizer_csv_column():
+    text = "name,hash\nAlice,D41D8CD98F00B204E9800998ECF8427E\nBob,900150983cd24fb0d6963f7d28e17f72\n"
+    result = read_phones_from_text(text, "hash", normalizer=_md5_keep)
+    assert result == [
+        "d41d8cd98f00b204e9800998ecf8427e",
+        "900150983cd24fb0d6963f7d28e17f72",
+    ]
+
+
+def test_read_text_default_normalizer_unchanged():
+    """回归：默认 normalizer 仍按明文手机号处理（去 +63 国家码）。"""
+    text = "+639171234567\n13812345678\n"
+    result = read_phones_from_text(text, None)
+    assert result == ["9171234567", "13812345678"]
