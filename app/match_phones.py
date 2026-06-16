@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import re
 import sys
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
@@ -43,6 +44,14 @@ def md5_hex_lower(s: str) -> str:
 
 def normalize_hex(s: str) -> str:
     return s.strip().lower()
+
+
+_MD5_HEX_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def is_md5_hex(s: str) -> bool:
+    """判断 s 是否为 32 位十六进制 MD5（忽略前后空白与大小写）。"""
+    return bool(_MD5_HEX_RE.match(s.strip().lower()))
 
 
 def compute_key10(digits: str) -> str:
