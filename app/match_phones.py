@@ -226,6 +226,41 @@ ORDER BY n.rn;
 """
 
 
+def build_sql_batches(
+    rows: List[str],
+    build_one: Callable[[List[str]], str],
+    max_bytes: int = 120_000,
+) -> List[str]:
+    """把 rows 拆成多批，使每批 build_one(batch) 的 UTF-8 字节数 ≤ max_bytes。
+
+    用于绕过 DataWorks/编辑器对单段 SQL 体积的限制（如 130KB）。每批都是
+    build_one 生成的独立完整 SQL（行号 rn 在批内从 1 重新计数）。
+
+    返回 SQL 字符串列表（至少一项）。空 rows 透传 build_one 的 ValueError。
+    若单行即超 max_bytes，则该行单独成批（仍会超限，由调用方告警）。
+    """
+    if not rows:
+        return [build_one(rows)]  # 触发与 build_one 一致的空输入错误
+
+    n = len(rows)
+    batches: List[str] = []
+    i = 0
+    while i < n:
+        # 二分找最大的 j（i < j ≤ n）使 build_one(rows[i:j]) 字节数 ≤ max_bytes
+        lo, hi, best = i + 1, n, i + 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            size = len(build_one(rows[i:mid]).encode("utf-8"))
+            if size <= max_bytes:
+                best = mid
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        batches.append(build_one(rows[i:best]))  # best ≥ i+1，保证推进、不死循环
+        i = best
+    return batches
+
+
 def read_phones_from_text(
     text: str,
     column: Optional[str],

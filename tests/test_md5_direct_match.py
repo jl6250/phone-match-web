@@ -133,3 +133,64 @@ def test_build_md5_sql_empty_raises():
             partition_predicate="pt = '20260101'",
             extra_where=None,
         )
+
+
+from app.match_phones import build_sql_batches
+
+
+def _md5_builder(rows):
+    return build_mc_md5_match_sql(
+        rows,
+        mc_table="proj.tbl",
+        login_column="login_name",
+        cipher_column="phone_hex",
+        partition_predicate="pt = '20260101'",
+        extra_where=None,
+    )
+
+
+def _gen_hashes(n):
+    # 生成 n 个互不相同的 32 位 hex（用十进制零填充再补足到 32 位）
+    return [str(i).zfill(32) for i in range(n)]
+
+
+def test_batches_single_when_small():
+    rows = _gen_hashes(3)
+    batches = build_sql_batches(rows, _md5_builder, max_bytes=120_000)
+    assert len(batches) == 1
+    assert batches[0] == _md5_builder(rows)
+
+
+def test_batches_split_respects_byte_limit():
+    rows = _gen_hashes(200)
+    limit = 4_000
+    batches = build_sql_batches(rows, _md5_builder, max_bytes=limit)
+    assert len(batches) > 1
+    for sql in batches:
+        assert len(sql.encode("utf-8")) <= limit
+
+
+def test_batches_cover_all_rows_in_order():
+    rows = _gen_hashes(200)
+    batches = build_sql_batches(rows, _md5_builder, max_bytes=4_000)
+    # 每个输入 hash 恰好出现在某一批中，且整体顺序保持
+    seen = []
+    for h in rows:
+        hits = [k for k, sql in enumerate(batches) if h in sql]
+        assert len(hits) == 1, f"{h} 应恰好出现在一批中，实际 {hits}"
+        seen.append((h, hits[0]))
+    # 批次索引随输入顺序单调不减
+    batch_idx = [b for _, b in seen]
+    assert batch_idx == sorted(batch_idx)
+
+
+def test_batches_oversize_single_row_no_infinite_loop():
+    rows = _gen_hashes(3)
+    # 阈值小到连一行都放不下：仍应每行单独成批，不死循环
+    batches = build_sql_batches(rows, _md5_builder, max_bytes=10)
+    assert len(batches) == 3
+
+
+def test_batches_empty_raises():
+    with pytest.raises(ValueError):
+        build_sql_batches([], _md5_builder, max_bytes=120_000)

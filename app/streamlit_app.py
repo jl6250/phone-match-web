@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import io
+import zipfile
 
 import pandas as pd
 import streamlit as st
@@ -21,6 +22,7 @@ from app.match_phones import (
     DEFAULT_MC_USER_TABLE,
     build_mc_md5_match_sql,
     build_mc_online_sql,
+    build_sql_batches,
     is_md5_hex,
     normalize_ph_mobile,
     read_phones_from_excel,
@@ -270,6 +272,7 @@ st.markdown(
     <span class="metric-chip">MD5 11位 · 左填0至11位</span>
     <span class="metric-chip yellow">文件上限 100 MB</span>
     <span class="metric-chip green">支持 TXT / CSV / TSV / Excel</span>
+    <span class="metric-chip">超大输入自动分批 SQL</span>
     <span class="metric-chip">保持原始顺序 · 重复数据原样保留</span>
   </div>
 </div>
@@ -444,49 +447,102 @@ with tab_sql:
         placeholder="例：business_line = 'bp'",
     )
 
+    max_kb = st.number_input(
+        "单批最大体积 (KB)",
+        min_value=10, max_value=500, value=120, step=10,
+        key="sql_max_kb",
+        help="超过该体积自动拆成多批，规避 DataWorks 单段 SQL 约 130KB 的限制；每批为独立可运行的 SQL。",
+    )
+
     if st.button("生成 SQL", type="primary", key="btn_sql", use_container_width=False):
         if not phones_list:
             st.warning("请先在上方填写或上传明文手机号")
         else:
-            try:
+            def _builder(rows: list[str]) -> str:
                 if is_md5_mode:
-                    sql = build_mc_md5_match_sql(
-                        phones_list,
+                    return build_mc_md5_match_sql(
+                        rows,
                         mc_table=mc_table.strip(),
                         login_column=login_col.strip(),
                         cipher_column=cipher_col.strip(),
                         partition_predicate=partition_expr.strip(),
                         extra_where=extra_where.strip() or None,
                     )
-                else:
-                    sql = build_mc_online_sql(
-                        phones_list,
-                        mc_table=mc_table.strip(),
-                        login_column=login_col.strip(),
-                        cipher_column=cipher_col.strip(),
-                        partition_predicate=partition_expr.strip(),
-                        extra_where=extra_where.strip() or None,
-                    )
-                st.session_state["last_sql"] = sql
+                return build_mc_online_sql(
+                    rows,
+                    mc_table=mc_table.strip(),
+                    login_column=login_col.strip(),
+                    cipher_column=cipher_col.strip(),
+                    partition_predicate=partition_expr.strip(),
+                    extra_where=extra_where.strip() or None,
+                )
+
+            max_bytes = int(max_kb) * 1000
+            try:
+                batches = build_sql_batches(phones_list, _builder, max_bytes=max_bytes)
+            except ValueError as e:
+                st.error(str(e))
+                batches = []
+
+            if batches:
+                total_chars = sum(len(b) for b in batches)
+                unit = "条 MD5" if is_md5_mode else "条手机号"
+                st.session_state["last_sql"] = batches[0]
                 st.markdown(
                     f'<div class="metric-row">'
                     f'<span class="metric-chip green">✓ SQL 生成成功</span>'
-                    f'<span class="metric-chip">{len(phones_list):,} 条手机号</span>'
-                    f'<span class="metric-chip">{len(sql):,} 字符</span>'
+                    f'<span class="metric-chip">{len(phones_list):,} {unit}</span>'
+                    f'<span class="metric-chip">共 {len(batches)} 批</span>'
+                    f'<span class="metric-chip">{total_chars:,} 字符</span>'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
-                st.code(sql, language="sql")
-                _copy_button(sql, "📋 复制 SQL")
-                st.download_button(
-                    "⬇️ 下载 phone_match_odps.sql",
-                    sql,
-                    file_name="phone_match_odps.sql",
-                    mime="text/plain; charset=utf-8",
-                    key="dl_sql",
-                )
-            except ValueError as e:
-                st.error(str(e))
+
+                oversize = [k for k, b in enumerate(batches, 1)
+                            if len(b.encode("utf-8")) > max_bytes]
+                if oversize:
+                    st.warning(
+                        f"第 {oversize} 批单批仍超过 {int(max_kb)}KB（可能单行过长），"
+                        f"请调高阈值或检查输入。"
+                    )
+
+                if len(batches) == 1:
+                    sql = batches[0]
+                    st.code(sql, language="sql")
+                    _copy_button(sql, "📋 复制 SQL")
+                    st.download_button(
+                        "⬇️ 下载 phone_match_odps.sql",
+                        sql,
+                        file_name="phone_match_odps.sql",
+                        mime="text/plain; charset=utf-8",
+                        key="dl_sql",
+                    )
+                else:
+                    st.info(f"已拆成 {len(batches)} 批，请逐批在 DataWorks 运行（结果可直接合并）。")
+                    zip_buf = io.BytesIO()
+                    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                        for k, b in enumerate(batches, 1):
+                            zf.writestr(f"phone_match_odps_part{k:02d}.sql", b)
+                    st.download_button(
+                        f"⬇️ 打包下载全部 {len(batches)} 批 (.zip)",
+                        zip_buf.getvalue(),
+                        file_name="phone_match_odps_batches.zip",
+                        mime="application/zip",
+                        key="dl_zip",
+                    )
+                    for k, b in enumerate(batches, 1):
+                        kb = len(b.encode("utf-8")) / 1000
+                        with st.expander(f"批次 {k} / {len(batches)}　（约 {kb:,.0f} KB）",
+                                         expanded=(k == 1)):
+                            st.code(b, language="sql")
+                            _copy_button(b, "📋 复制 SQL")
+                            st.download_button(
+                                f"⬇️ 下载 part{k:02d}.sql",
+                                b,
+                                file_name=f"phone_match_odps_part{k:02d}.sql",
+                                mime="text/plain; charset=utf-8",
+                                key=f"dl_sql_{k}",
+                            )
 
 # ── Tab 2：MC 云端执行 ────────────────────────────────────────────────────────
 with tab_cloud:
