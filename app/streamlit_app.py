@@ -19,7 +19,9 @@ from app.match_phones import (
     DEFAULT_MC_CIPHER_COLUMN,
     DEFAULT_MC_PARTITION_EXPR,
     DEFAULT_MC_USER_TABLE,
+    build_mc_md5_match_sql,
     build_mc_online_sql,
+    is_md5_hex,
     read_phones_from_excel,
     read_phones_from_text,
 )
@@ -274,6 +276,20 @@ st.markdown(
 st.session_state.setdefault("last_sql", "")
 
 with st.expander("① 明文手机号（各 Tab 共用）", expanded=True):
+    input_kind = st.radio(
+        "输入类型",
+        options=["明文手机号", "MD5 密文"],
+        horizontal=True,
+        key="input_kind",
+        help="选「MD5 密文」时，输入将按 32 位十六进制校验，直接用于匹配数仓密文列",
+    )
+    is_md5_mode = input_kind == "MD5 密文"
+
+    def _md5_norm(s: str) -> str:
+        return s.strip().lower()
+
+    _normalizer = _md5_norm if is_md5_mode else None
+
     col_up, col_paste = st.columns([1, 1], gap="large")
 
     with col_up:
@@ -324,11 +340,15 @@ with st.expander("① 明文手机号（各 Tab 共用）", expanded=True):
                     try:
                         merged: list[str] = []
                         for sh in [s for s in sheet_names if s in set(selected_sheets)]:
-                            merged.extend(read_phones_from_excel(
-                                raw_bytes,
-                                sheet=sh,
-                                column=col_phone or None,
-                            ))
+                            if _normalizer is not None:
+                                merged.extend(read_phones_from_excel(
+                                    raw_bytes, sheet=sh, column=col_phone or None,
+                                    normalizer=_normalizer,
+                                ))
+                            else:
+                                merged.extend(read_phones_from_excel(
+                                    raw_bytes, sheet=sh, column=col_phone or None,
+                                ))
                         excel_phones = merged
                         sheets_label = "、".join(f"「{s}」" for s in selected_sheets)
                         st.success(f"已从 {sheets_label} 载入 {len(excel_phones):,} 行")
@@ -341,12 +361,15 @@ with st.expander("① 明文手机号（各 Tab 共用）", expanded=True):
             body = up.getvalue().decode("utf-8-sig", errors="replace")
             st.success(f"已载入上传文件（{len(body):,} 字符），覆盖文本框内容")
 
-    upper_md5_global = st.checkbox(
-        "密文 MD5 为大写十六进制",
-        value=False,
-        key="upper_md5_global",
-        help="勾选后比对时将 MD5 转大写再比对",
-    )
+    if not is_md5_mode:
+        upper_md5_global = st.checkbox(
+            "密文 MD5 为大写十六进制",
+            value=False,
+            key="upper_md5_global",
+            help="勾选后比对时将 MD5 转大写再比对",
+        )
+    else:
+        upper_md5_global = False
 
 # 解析手机号
 phones_err: str | None = None
@@ -355,24 +378,44 @@ if excel_phones is not None:
     phones_list = excel_phones
 elif body.strip():
     try:
-        phones_list = read_phones_from_text(body, col_phone or None)
+        if _normalizer is not None:
+            phones_list = read_phones_from_text(body, col_phone or None, normalizer=_normalizer)
+        else:
+            phones_list = read_phones_from_text(body, col_phone or None)
     except ValueError as e:
         phones_err = str(e)
 
 if phones_err:
     st.error(f"解析失败：{phones_err}")
 elif phones_list:
-    uniq_count = len(set(phones_list))
-    dup_count  = len(phones_list) - uniq_count
-    dup_chip   = f'<span class="metric-chip yellow">含重复 {dup_count:,} 条</span>' if dup_count else ""
-    st.markdown(
-        f'<div class="metric-row">'
-        f'<span class="metric-chip green">✓ 已解析 {len(phones_list):,} 条手机号</span>'
-        f'<span class="metric-chip">去重后 {uniq_count:,} 条唯一值</span>'
-        f'{dup_chip}'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+    if is_md5_mode:
+        valid_md5 = [h for h in phones_list if is_md5_hex(h)]
+        invalid_n = len(phones_list) - len(valid_md5)
+        phones_list = valid_md5  # 仅有效 MD5 进入后续 SQL 生成
+        uniq_count = len(set(valid_md5))
+        dup_count = len(valid_md5) - uniq_count
+        dup_chip = f'<span class="metric-chip yellow">含重复 {dup_count:,} 条</span>' if dup_count else ""
+        invalid_chip = f'<span class="metric-chip yellow">忽略 {invalid_n:,} 条无效（非 32 位 hex）</span>' if invalid_n else ""
+        st.markdown(
+            f'<div class="metric-row">'
+            f'<span class="metric-chip green">✓ 已解析 {len(valid_md5):,} 条有效 MD5</span>'
+            f'<span class="metric-chip">去重后 {uniq_count:,} 条唯一值</span>'
+            f'{dup_chip}{invalid_chip}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        uniq_count = len(set(phones_list))
+        dup_count  = len(phones_list) - uniq_count
+        dup_chip   = f'<span class="metric-chip yellow">含重复 {dup_count:,} 条</span>' if dup_count else ""
+        st.markdown(
+            f'<div class="metric-row">'
+            f'<span class="metric-chip green">✓ 已解析 {len(phones_list):,} 条手机号</span>'
+            f'<span class="metric-chip">去重后 {uniq_count:,} 条唯一值</span>'
+            f'{dup_chip}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
     with st.expander("查看解析明细（排查行数异常用）", expanded=False):
         _df = pd.DataFrame({"#": range(1, len(phones_list)+1), "解析结果": phones_list})
         st.dataframe(_df, use_container_width=True, height=220)
@@ -411,14 +454,24 @@ with tab_sql:
             st.warning("请先在上方填写或上传明文手机号")
         else:
             try:
-                sql = build_mc_online_sql(
-                    phones_list,
-                    mc_table=mc_table.strip(),
-                    login_column=login_col.strip(),
-                    cipher_column=cipher_col.strip(),
-                    partition_predicate=partition_expr.strip(),
-                    extra_where=extra_where.strip() or None,
-                )
+                if is_md5_mode:
+                    sql = build_mc_md5_match_sql(
+                        phones_list,
+                        mc_table=mc_table.strip(),
+                        login_column=login_col.strip(),
+                        cipher_column=cipher_col.strip(),
+                        partition_predicate=partition_expr.strip(),
+                        extra_where=extra_where.strip() or None,
+                    )
+                else:
+                    sql = build_mc_online_sql(
+                        phones_list,
+                        mc_table=mc_table.strip(),
+                        login_column=login_col.strip(),
+                        cipher_column=cipher_col.strip(),
+                        partition_predicate=partition_expr.strip(),
+                        extra_where=extra_where.strip() or None,
+                    )
                 st.session_state["last_sql"] = sql
                 st.markdown(
                     f'<div class="metric-row">'
