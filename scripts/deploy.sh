@@ -13,12 +13,25 @@
 #   HEALTH_TIMEOUT     健康检查超时秒数，默认 90
 #   HEALTH_INTERVAL    健康检查轮询间隔秒数，默认 3
 #
+# Git 认证（免交互拉取私有仓库）：
+#   把令牌放进 scripts/deploy.env（已被 .gitignore 忽略，不会被提交、也不会被
+#   脚本的 git reset 覆盖），脚本会在拉取前用它设置带令牌的 origin 远程地址。
+#   见 scripts/deploy.env.example。变量：
+#     GIT_REMOTE_USER   Codeup 用户名
+#     GIT_REMOTE_TOKEN  个人访问令牌（pt- 开头）
+#
 set -euo pipefail
 
 # ── 路径：脚本在 scripts/ 下，仓库根目录是其上一级 ─────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 cd "$REPO_ROOT"
+
+# 加载 git 认证等本地配置（不纳入版本控制）
+if [[ -f "$SCRIPT_DIR/deploy.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$SCRIPT_DIR/deploy.env"
+fi
 
 BRANCH="${1:-${DEPLOY_BRANCH:-main}}"
 COMPOSE_SERVICE="${COMPOSE_SERVICE:-phone-match-web}"
@@ -52,6 +65,20 @@ preflight() {
     git status --short >&2
     exit 1
   fi
+}
+
+# ── 配置带令牌的 origin 远程（免交互拉取私有仓库）────────────────────────────
+# 若设置了 GIT_REMOTE_TOKEN，则把 origin 重写为 https://user:token@host/path。
+# 令牌只写入 .git/config（不纳入版本控制，git reset 也不影响），不会打印到日志。
+configure_remote() {
+  [[ -n "${GIT_REMOTE_TOKEN:-}" ]] || return 0
+  local cur host_path
+  cur="$(git remote get-url origin)"
+  host_path="${cur#*://}"     # 去掉 scheme
+  host_path="${host_path#*@}" # 去掉可能已存在的 user:token@
+  git remote set-url origin \
+    "https://${GIT_REMOTE_USER:-}:${GIT_REMOTE_TOKEN}@${host_path}"
+  log "已配置带令牌的 origin 远程（凭证仅存于 .git/config）"
 }
 
 # ── 健康检查：轮询容器 HEALTHCHECK 状态 ──────────────────────────────────────
@@ -110,6 +137,7 @@ rollback() {
 # ── 主流程 ────────────────────────────────────────────────────────────────────
 main() {
   preflight
+  configure_remote
 
   local prev_sha new_sha
   prev_sha="$(git rev-parse HEAD)"
