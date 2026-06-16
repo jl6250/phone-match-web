@@ -22,9 +22,15 @@ from app.match_phones import (
     build_mc_md5_match_sql,
     build_mc_online_sql,
     is_md5_hex,
+    normalize_ph_mobile,
     read_phones_from_excel,
     read_phones_from_text,
 )
+
+def _md5_norm(s: str) -> str:
+    """MD5 模式 normalizer：strip + lower，保留非空。"""
+    return s.strip().lower()
+
 
 def _copy_button(text: str, label: str = "📋 复制") -> None:
     payload = json.dumps(text)
@@ -285,10 +291,7 @@ with st.expander("① 明文手机号（各 Tab 共用）", expanded=True):
     )
     is_md5_mode = input_kind == "MD5 密文"
 
-    def _md5_norm(s: str) -> str:
-        return s.strip().lower()
-
-    _normalizer = _md5_norm if is_md5_mode else None
+    _normalizer = _md5_norm if is_md5_mode else normalize_ph_mobile
 
     col_up, col_paste = st.columns([1, 1], gap="large")
 
@@ -340,15 +343,10 @@ with st.expander("① 明文手机号（各 Tab 共用）", expanded=True):
                     try:
                         merged: list[str] = []
                         for sh in [s for s in sheet_names if s in set(selected_sheets)]:
-                            if _normalizer is not None:
-                                merged.extend(read_phones_from_excel(
-                                    raw_bytes, sheet=sh, column=col_phone or None,
-                                    normalizer=_normalizer,
-                                ))
-                            else:
-                                merged.extend(read_phones_from_excel(
-                                    raw_bytes, sheet=sh, column=col_phone or None,
-                                ))
+                            merged.extend(read_phones_from_excel(
+                                raw_bytes, sheet=sh, column=col_phone or None,
+                                normalizer=_normalizer,
+                            ))
                         excel_phones = merged
                         sheets_label = "、".join(f"「{s}」" for s in selected_sheets)
                         st.success(f"已从 {sheets_label} 载入 {len(excel_phones):,} 行")
@@ -378,10 +376,7 @@ if excel_phones is not None:
     phones_list = excel_phones
 elif body.strip():
     try:
-        if _normalizer is not None:
-            phones_list = read_phones_from_text(body, col_phone or None, normalizer=_normalizer)
-        else:
-            phones_list = read_phones_from_text(body, col_phone or None)
+        phones_list = read_phones_from_text(body, col_phone or None, normalizer=_normalizer)
     except ValueError as e:
         phones_err = str(e)
 
