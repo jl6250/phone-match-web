@@ -323,12 +323,17 @@ with st.expander("① 输入数据：明文手机号 / MD5 密文（各 Tab 共�
 
     with col_paste:
         st.markdown('<p class="section-title">粘贴数据</p>', unsafe_allow_html=True)
+        _paste_ph = (
+            "d41d8cd98f00b204e9800998ecf8427e\n900150983cd24fb0d6963f7d28e17f72\n..."
+            if is_md5_mode
+            else "13812345678\n08612345678\n..."
+        )
         typed = st.text_area(
             "一行一个，或粘贴表格",
             height=160,
             key="phone_paste",
             label_visibility="collapsed",
-            placeholder="13812345678\n08612345678\n...",
+            placeholder=_paste_ph,
         )
 
     body = typed
