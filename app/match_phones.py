@@ -41,6 +41,29 @@ def normalize_ph_mobile(raw: str) -> str:
     return d
 
 
+# 严格校验允许的分隔符（去除后必须全为 ASCII 数字）：空格、连字符、加号、括号
+_PH_SEP_RE = re.compile(r"[ \-+()]")
+_ASCII_DIGITS_RE = re.compile(r"[0-9]+")
+
+
+def validate_ph_phone(raw: str, min_len: int = 10, max_len: int = 13) -> Optional[str]:
+    """严格校验明文手机号。
+
+    去除允许的分隔符（空格 - + ()）后必须全为 ASCII 数字（拒绝字母、小数点、
+    下划线、科学计数、全角/阿拉伯数字等）；再去 63 国家码（12/13 位时），
+    最终位数须落在 [min_len, max_len]。合法返回规范化数字串，否则返回 None。
+    """
+    stripped = _PH_SEP_RE.sub("", raw.strip())
+    if not _ASCII_DIGITS_RE.fullmatch(stripped):
+        return None
+    d = stripped
+    if d.startswith("63") and len(d) in (12, 13):
+        d = d[2:]
+    if not (min_len <= len(d) <= max_len):
+        return None
+    return d
+
+
 def md5_hex_lower(s: str) -> str:
     return hashlib.md5(s.encode("utf-8")).hexdigest()
 

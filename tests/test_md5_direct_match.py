@@ -255,3 +255,51 @@ def test_read_excel_multi_columns_row_major():
 def test_list_columns_from_excel():
     data = _make_xlsx_multi([["13800000001", "x"]], ["phone", "note"])
     assert list_columns_from_excel(data, sheet="Sheet1") == ["phone", "note"]
+
+
+# ── 明文手机号严格校验 ────────────────────────────────────────────────────────
+from app.match_phones import validate_ph_phone
+
+
+def test_validate_plain_11_digit():
+    assert validate_ph_phone("13812345678") == "13812345678"
+
+
+def test_validate_strips_allowed_separators():
+    assert validate_ph_phone("138-1234-5678") == "13812345678"
+    assert validate_ph_phone("(138) 1234 5678") == "13812345678"
+
+
+def test_validate_strips_country_code_63():
+    assert validate_ph_phone("+639171234567") == "9171234567"
+    assert validate_ph_phone("639171234567") == "9171234567"
+
+
+def test_validate_rejects_letters():
+    assert validate_ph_phone("abc13812345678") is None
+    assert validate_ph_phone("13812345678xyz") is None
+    assert validate_ph_phone("hello") is None
+
+
+def test_validate_rejects_decimal_and_underscore():
+    assert validate_ph_phone("13812345678.0") is None
+    assert validate_ph_phone("138_1234_5678") is None
+    assert validate_ph_phone("1.3812e10") is None
+
+
+def test_validate_rejects_non_ascii_digits():
+    assert validate_ph_phone("１３８12345678") is None   # 全角
+    assert validate_ph_phone("١٢٣45678901") is None      # 阿拉伯-印度数字
+    assert validate_ph_phone("²³45678901") is None        # 上标
+
+
+def test_validate_rejects_empty_and_blank():
+    assert validate_ph_phone("") is None
+    assert validate_ph_phone("   ") is None
+
+
+def test_validate_length_bounds_10_to_13():
+    assert validate_ph_phone("1234567890") == "1234567890"          # 10 合法
+    assert validate_ph_phone("1234567890123") == "1234567890123"    # 13 合法
+    assert validate_ph_phone("123456789") is None                   # 9 太短
+    assert validate_ph_phone("12345678901234") is None              # 14 太长

@@ -26,14 +26,19 @@ from app.match_phones import (
     is_md5_hex,
     list_columns_from_excel,
     list_columns_from_text,
-    normalize_ph_mobile,
     read_phones_from_excel,
     read_phones_from_text,
+    validate_ph_phone,
 )
 
 def _md5_norm(s: str) -> str:
     """MD5 模式 normalizer：strip + lower，保留非空。"""
     return s.strip().lower()
+
+
+def _keep_strip(s: str) -> str:
+    """明文模式 normalizer：仅 strip，保留原始候选，稍后做严格校验。"""
+    return s.strip()
 
 
 def _copy_button(text: str, label: str = "📋 复制") -> None:
@@ -271,6 +276,7 @@ st.markdown(
   </p>
   <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
     <span class="metric-chip">明文：MD5 10位去0 / 11位补0</span>
+    <span class="metric-chip">明文严格校验 · 纯数字 10–13 位</span>
     <span class="metric-chip">MD5 密文：直接匹配</span>
     <span class="metric-chip yellow">文件上限 100 MB</span>
     <span class="metric-chip green">支持 TXT / CSV / TSV / Excel</span>
@@ -297,7 +303,7 @@ with st.expander("① 输入数据：明文手机号 / MD5 密文（各 Tab 共�
     )
     is_md5_mode = input_kind == "MD5 密文"
 
-    _normalizer = _md5_norm if is_md5_mode else normalize_ph_mobile
+    _normalizer = _md5_norm if is_md5_mode else _keep_strip
 
     col_up, col_paste = st.columns([1, 1], gap="large")
 
@@ -446,17 +452,30 @@ elif phones_list:
             unsafe_allow_html=True,
         )
     else:
-        uniq_count = len(set(phones_list))
-        dup_count  = len(phones_list) - uniq_count
-        dup_chip   = f'<span class="metric-chip yellow">含重复 {dup_count:,} 条</span>' if dup_count else ""
+        # 明文严格校验：仅 ASCII 数字、去 63 国家码后 10–13 位；非法行丢弃并计数
+        checked = [(raw, validate_ph_phone(raw)) for raw in phones_list]
+        valid_phones = [n for _, n in checked if n is not None]
+        invalid_raws = [raw for raw, n in checked if n is None]
+        invalid_n = len(invalid_raws)
+        phones_list = valid_phones  # 仅合法手机号进入后续 SQL 生成
+        uniq_count = len(set(valid_phones))
+        dup_count = len(valid_phones) - uniq_count
+        dup_chip = f'<span class="metric-chip yellow">含重复 {dup_count:,} 条</span>' if dup_count else ""
+        invalid_chip = f'<span class="metric-chip yellow">忽略 {invalid_n:,} 条非法（非纯数字/位数不符）</span>' if invalid_n else ""
         st.markdown(
             f'<div class="metric-row">'
-            f'<span class="metric-chip green">✓ 已解析 {len(phones_list):,} 条手机号</span>'
+            f'<span class="metric-chip green">✓ 已解析 {len(valid_phones):,} 条合法手机号</span>'
             f'<span class="metric-chip">去重后 {uniq_count:,} 条唯一值</span>'
-            f'{dup_chip}'
+            f'{dup_chip}{invalid_chip}'
             f'</div>',
             unsafe_allow_html=True,
         )
+        if invalid_raws:
+            with st.expander(f"查看被忽略的 {invalid_n:,} 条非法行", expanded=False):
+                _idf = pd.DataFrame({"原始值": invalid_raws[:1000]})
+                st.dataframe(_idf, use_container_width=True, height=200)
+                if invalid_n > 1000:
+                    st.caption(f"仅展示前 1000 条，共 {invalid_n:,} 条")
     with st.expander("查看解析明细（排查行数异常用）", expanded=False):
         _df = pd.DataFrame({"#": range(1, len(phones_list)+1), "解析结果": phones_list})
         st.dataframe(_df, use_container_width=True, height=220)
