@@ -67,3 +67,24 @@ def fetch_result(odps, instance_id: str):
 def logview_url(odps, instance_id: str) -> str:
     """返回 MaxCompute Logview 地址（排查用）。"""
     return odps.get_instance(instance_id).get_logview_address()
+
+
+def get_odps(cfg: CloudConfig):
+    """用 ECS RAM 角色 STS 构造 ODPS 客户端（无 AK）。
+
+    STS 由 alibabacloud_credentials 从 ECS 元数据自动获取并轮转。
+    仅在阿里云 ECS（绑定了具备 MaxCompute 权限的 RAM 角色）上可用。
+    """
+    try:
+        from odps import ODPS
+        from odps.accounts import CredentialProviderAccount
+        from alibabacloud_credentials.client import Client as CredClient
+        from alibabacloud_credentials.models import Config as CredConfig
+    except ImportError as e:  # 依赖缺失
+        raise CloudExecError(
+            "缺少依赖，请安装: pip install pyodps alibabacloud-credentials pandas"
+        ) from e
+
+    cred = CredClient(CredConfig(**_credential_kwargs(cfg)))
+    account = CredentialProviderAccount(cred)  # STS 自动轮转
+    return ODPS(account=account, project=cfg.project, endpoint=cfg.endpoint)
