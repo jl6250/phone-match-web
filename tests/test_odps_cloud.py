@@ -3,22 +3,75 @@ from __future__ import annotations
 
 import pytest
 
-from app.odps_cloud import CloudConfig, _credential_kwargs, load_config_from_env
+from app.odps_cloud import CloudConfig, load_config_from_env
 
 
-def test_credential_kwargs_uses_ecs_ram_role_and_no_ak():
-    cfg = CloudConfig(project="P", endpoint="http://e", ram_role=None)
-    kw = _credential_kwargs(cfg)
-    assert kw["type"] == "ecs_ram_role"
-    assert kw["role_name"] is None
-    # 绝不出现任何 AK 字段
-    assert "access_key_id" not in kw
-    assert "access_key_secret" not in kw
+class _Resp:
+    def __init__(self, body: str):
+        self._b = body.encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return self._b
 
 
-def test_credential_kwargs_passes_role_name():
-    cfg = CloudConfig(project="P", endpoint="http://e", ram_role="my-role")
-    assert _credential_kwargs(cfg)["role_name"] == "my-role"
+def _make_fake_urlopen(calls, *, token="tok-123", role="my-role", creds=None,
+                       token_fails=False):
+    import json as _json
+    creds = creds or {
+        "AccessKeyId": "STS.ak", "AccessKeySecret": "sk",
+        "SecurityToken": "tok", "Code": "Success",
+    }
+
+    def fake_urlopen(req, timeout=3):
+        url = req.full_url
+        calls.append((req.get_method(), url))
+        if url.endswith("/api/token"):
+            if token_fails:
+                raise OSError("token endpoint unavailable")
+            return _Resp(token)
+        if url.endswith("/security-credentials/"):
+            return _Resp(role)
+        if url.endswith("/security-credentials/" + role):
+            return _Resp(_json.dumps(creds))
+        raise AssertionError(f"unexpected url {url}")
+
+    return fake_urlopen
+
+
+def test_fetch_ecs_ram_sts_hardened_and_autodiscover(monkeypatch):
+    import urllib.request
+    from app.odps_cloud import _fetch_ecs_ram_sts
+    calls = []
+    monkeypatch.setattr(urllib.request, "urlopen", _make_fake_urlopen(calls))
+    ak, sk, tok = _fetch_ecs_ram_sts(None)  # 自动探测角色
+    assert (ak, sk, tok) == ("STS.ak", "sk", "tok")
+    methods_urls = calls
+    # 加固模式：先 PUT token
+    assert methods_urls[0] == ("PUT", "http://100.100.100.200/latest/api/token")
+    # 未指定角色 → 先列角色，再取该角色凭证
+    assert any(u.endswith("/security-credentials/") for _, u in methods_urls)
+    assert any(u.endswith("/security-credentials/my-role") for _, u in methods_urls)
+
+
+def test_fetch_ecs_ram_sts_token_fallback_and_explicit_role(monkeypatch):
+    import urllib.request
+    from app.odps_cloud import _fetch_ecs_ram_sts
+    calls = []
+    monkeypatch.setattr(
+        urllib.request, "urlopen",
+        _make_fake_urlopen(calls, role="explicit-role", token_fails=True),
+    )
+    ak, sk, tok = _fetch_ecs_ram_sts("explicit-role")  # 指定角色 → 不列举
+    assert (ak, sk, tok) == ("STS.ak", "sk", "tok")
+    # token PUT 失败后仍能取凭证；指定角色时不请求角色列表
+    assert not any(u.endswith("/security-credentials/") for _, u in calls)
+    assert any(u.endswith("/security-credentials/explicit-role") for _, u in calls)
 
 
 def test_load_config_defaults(monkeypatch):
@@ -130,23 +183,25 @@ def test_logview_url():
     assert logview_url(odps, "inst-1") == "http://logview/abc"
 
 
-def test_get_odps_caches_per_config(monkeypatch):
+def test_get_odps_caches_within_ttl_and_rebuilds_after(monkeypatch):
     import app.odps_cloud as oc
-    oc._odps_client_cache.clear()
+    oc._odps_cache.clear()
     calls = {"n": 0}
 
     def fake_build(cfg):
         calls["n"] += 1
-        return f"client:{cfg.project}"
+        return f"client:{cfg.project}:{calls['n']}"
 
     monkeypatch.setattr(oc, "_build_odps", fake_build)
     cfg = CloudConfig(project="P", endpoint="http://e", ram_role=None)
-    first = oc.get_odps(cfg)
-    second = oc.get_odps(cfg)
-    assert first is second               # same cached object
-    assert calls["n"] == 1               # built only once
-    # 不同配置 → 重新构建
-    other = oc.get_odps(CloudConfig(project="Q", endpoint="http://e", ram_role=None))
+    a = oc.get_odps(cfg, _now=1000)
+    b = oc.get_odps(cfg, _now=1000 + oc._CACHE_TTL - 1)  # TTL 内 → 命中缓存
+    assert a is b
+    assert calls["n"] == 1
+    c = oc.get_odps(cfg, _now=1000 + oc._CACHE_TTL + 1)  # 超 TTL → 重取新 STS 重建
     assert calls["n"] == 2
-    assert other == "client:Q"
-    oc._odps_client_cache.clear()
+    assert c != a
+    # 不同配置 → 独立构建
+    oc.get_odps(CloudConfig(project="Q", endpoint="http://e", ram_role=None), _now=1000)
+    assert calls["n"] == 3
+    oc._odps_cache.clear()
