@@ -36,3 +36,34 @@ def load_config_from_env() -> CloudConfig:
 def _credential_kwargs(cfg: CloudConfig) -> dict:
     """构造 alibabacloud_credentials Config 的参数：仅用 ecs_ram_role，绝不含 AK。"""
     return {"type": "ecs_ram_role", "role_name": cfg.ram_role}
+
+
+def submit_sql(odps, sql: str) -> str:
+    """异步提交 SQL，返回 instance_id（不阻塞）。"""
+    return odps.run_sql(sql).id
+
+
+def poll(odps, instance_id: str) -> str:
+    """返回 'Running' | 'Success' | 'Failure'。"""
+    inst = odps.get_instance(instance_id)
+    if not inst.is_terminated():
+        return "Running"
+    return "Success" if inst.is_successful() else "Failure"
+
+
+def fetch_result(odps, instance_id: str):
+    """用 Tunnel 读全量结果，返回 pandas.DataFrame。"""
+    inst = odps.get_instance(instance_id)
+    with inst.open_reader(tunnel=True, limit=False) as reader:
+        try:
+            return reader.to_pandas()
+        except AttributeError:
+            import pandas as pd
+            cols = [c.name for c in reader.schema.columns] if getattr(reader, "schema", None) else []
+            rows = [list(rec.values) for rec in reader]
+            return pd.DataFrame(rows, columns=cols or None)
+
+
+def logview_url(odps, instance_id: str) -> str:
+    """返回 MaxCompute Logview 地址（排查用）。"""
+    return odps.get_instance(instance_id).get_logview_address()
