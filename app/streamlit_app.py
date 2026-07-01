@@ -40,6 +40,7 @@ from app.odps_cloud import (
     load_config_from_env,
     logview_url,
     poll,
+    split_sql_hints,
     sql_for_cloud,
     submit_sql,
 )
@@ -671,7 +672,8 @@ with tab_cloud:
     def _submit_batch(idx: int) -> None:
         odps = get_odps(_cfg)
         batches = st.session_state["cloud_batches"]
-        st.session_state["cloud_instance_id"] = submit_sql(odps, batches[idx])
+        body, hints = split_sql_hints(batches[idx])  # set 行作为 hint，避免多语句报错
+        st.session_state["cloud_instance_id"] = submit_sql(odps, body, hints=hints)
         st.session_state["cloud_batch_idx"] = idx
         st.session_state["cloud_started_at"] = time.time()
 

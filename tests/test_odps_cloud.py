@@ -138,8 +138,9 @@ class _FakeODPS:
         self.run_sql_arg = None
         self.get_instance_arg = None
 
-    def run_sql(self, sql):
+    def run_sql(self, sql, hints=None):
         self.run_sql_arg = sql
+        self.run_sql_hints = hints
         return self._instance
 
     def get_instance(self, instance_id):
@@ -151,6 +152,25 @@ def test_submit_sql_returns_instance_id_and_passes_sql():
     odps = _FakeODPS(_FakeInstance(instance_id="20260701abc"))
     assert submit_sql(odps, "SELECT 1") == "20260701abc"
     assert odps.run_sql_arg == "SELECT 1"
+
+
+def test_submit_sql_passes_hints():
+    odps = _FakeODPS(_FakeInstance(instance_id="i-9"))
+    assert submit_sql(odps, "SELECT 1", hints={"k": "v"}) == "i-9"
+    assert odps.run_sql_hints == {"k": "v"}
+
+
+def test_split_sql_hints_extracts_set_lines():
+    from app.odps_cloud import split_sql_hints
+    sql = (
+        "set odps.sql.validate.orderby.limit=false;\n"
+        "WITH raw_input AS (SELECT 1) SELECT * FROM raw_input ORDER BY 1;"
+    )
+    body, hints = split_sql_hints(sql)
+    assert hints == {"odps.sql.validate.orderby.limit": "false"}
+    assert body.startswith("WITH raw_input")
+    assert "set odps.sql" not in body           # set 行已剥离 → 单语句
+    assert body.count(";") == 1                   # 仅剩一条语句
 
 
 def test_poll_running():

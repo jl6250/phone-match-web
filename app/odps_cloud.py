@@ -54,8 +54,28 @@ def sql_for_cloud(sql: str) -> str:
     return "\n".join(lines).strip()
 
 
-def submit_sql(odps, sql: str) -> str:
-    """异步提交 SQL，返回 instance_id（不阻塞）。"""
+def split_sql_hints(sql: str) -> tuple[str, dict]:
+    """把 `set k=v;` 行剥离为 hints，返回 (单语句 SQL 本体, hints)。
+
+    pyodps run_sql 把 `set ...;` + 查询当成多语句会报错（需 submit.mode=script）；
+    将 set 作为 hints 单独传入，SQL 本体即为单条语句，语义与结果读取不变。
+    """
+    hints: dict = {}
+    body: list[str] = []
+    for ln in sql.splitlines():
+        s = ln.strip()
+        if s.lower().startswith("set ") and s.endswith(";") and "=" in s:
+            k, _, v = s[4:-1].partition("=")
+            hints[k.strip()] = v.strip()
+        else:
+            body.append(ln)
+    return "\n".join(body).strip(), hints
+
+
+def submit_sql(odps, sql: str, hints: dict | None = None) -> str:
+    """异步提交 SQL，返回 instance_id（不阻塞）。hints 为 None 时不传，兼容旧签名。"""
+    if hints:
+        return odps.run_sql(sql, hints=hints).id
     return odps.run_sql(sql).id
 
 
