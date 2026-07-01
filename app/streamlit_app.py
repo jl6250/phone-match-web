@@ -647,31 +647,43 @@ with tab_cloud:
 
     st.session_state.setdefault("cloud_stage", "idle")
 
-    def _build_cloud_sql() -> str:
-        if is_md5_mode:
-            return build_mc_md5_match_sql(
-                phones_list,
+    # MC 单条 SQL 上限 2,097,152 字节；留余量并计入注释（构建时含注释，提交前再剥离）
+    _CLOUD_SQL_MAX_BYTES = 1_900_000
+
+    def _build_cloud_batches() -> list[str]:
+        def _one(rows: list[str]) -> str:
+            if is_md5_mode:
+                return build_mc_md5_match_sql(
+                    rows,
+                    mc_table=cloud_table.strip(), login_column=cloud_login.strip(),
+                    cipher_column=cloud_cipher.strip(), partition_predicate=cloud_pt.strip(),
+                    extra_where=cloud_extra.strip() or None,
+                )
+            return build_mc_online_sql(
+                rows,
                 mc_table=cloud_table.strip(), login_column=cloud_login.strip(),
                 cipher_column=cloud_cipher.strip(), partition_predicate=cloud_pt.strip(),
                 extra_where=cloud_extra.strip() or None,
             )
-        return build_mc_online_sql(
-            phones_list,
-            mc_table=cloud_table.strip(), login_column=cloud_login.strip(),
-            cipher_column=cloud_cipher.strip(), partition_predicate=cloud_pt.strip(),
-            extra_where=cloud_extra.strip() or None,
-        )
+        batches = build_sql_batches(phones_list, _one, max_bytes=_CLOUD_SQL_MAX_BYTES)
+        return [sql_for_cloud(b) for b in batches]
+
+    def _submit_batch(idx: int) -> None:
+        odps = get_odps(_cfg)
+        batches = st.session_state["cloud_batches"]
+        st.session_state["cloud_instance_id"] = submit_sql(odps, batches[idx])
+        st.session_state["cloud_batch_idx"] = idx
+        st.session_state["cloud_started_at"] = time.time()
 
     if st.button("☁️ 云端执行", type="primary", key="btn_cloud"):
         if not phones_list:
             st.warning("请先在上方填写或上传数据（明文手机号或 MD5 密文）")
         else:
             try:
-                sql = sql_for_cloud(_build_cloud_sql())
-                odps = get_odps(_cfg)
-                st.session_state["cloud_instance_id"] = submit_sql(odps, sql)
+                st.session_state["cloud_batches"] = _build_cloud_batches()
+                st.session_state["cloud_results"] = []
+                _submit_batch(0)
                 st.session_state["cloud_stage"] = "running"
-                st.session_state["cloud_started_at"] = time.time()
                 st.session_state.pop("cloud_error", None)
                 st.session_state.pop("cloud_trace", None)
                 st.rerun()
@@ -684,34 +696,44 @@ with tab_cloud:
     inst_id = st.session_state.get("cloud_instance_id")
 
     if stage == "running" and inst_id:
-        with st.status(f"云端执行中… instance={inst_id}", expanded=True) as status:
+        batches = st.session_state.get("cloud_batches", [])
+        idx = st.session_state.get("cloud_batch_idx", 0)
+        nb = len(batches)
+        with st.status(f"云端执行中… 批次 {idx + 1}/{nb}", expanded=True) as status:
             try:
                 elapsed = time.time() - st.session_state.get("cloud_started_at", time.time())
-                if elapsed > 300:  # 轮询超时上限 5 分钟
+                if elapsed > 300:  # 每批轮询超时上限 5 分钟
                     odps = get_odps(_cfg)
                     st.session_state["cloud_logview"] = logview_url(odps, inst_id)
                     st.session_state["cloud_stage"] = "failed"
                     st.session_state["cloud_error"] = (
-                        "轮询超过 5 分钟未完成，已停止等待；可凭 Logview 去控制台查看作业。"
+                        f"批次 {idx + 1}/{nb} 轮询超过 5 分钟未完成，已停止等待；可凭 Logview 去控制台查看作业。"
                     )
                     st.rerun()
                 odps = get_odps(_cfg)
                 state = poll(odps, inst_id)
-                st.write(f"状态：{state}（已等待 {int(elapsed)}s）")
+                st.write(f"批次 {idx + 1}/{nb} 状态：{state}（已等待 {int(elapsed)}s）")
                 if state == "Running":
                     time.sleep(2)
                     st.rerun()
                 elif state == "Success":
-                    df = fetch_result(odps, inst_id)
-                    st.session_state["cloud_df"] = df
+                    st.session_state["cloud_results"].append(fetch_result(odps, inst_id))
                     st.session_state["cloud_logview"] = logview_url(odps, inst_id)
-                    st.session_state["cloud_stage"] = "done"
-                    status.update(label="执行完成", state="complete")
-                    st.rerun()
+                    if idx + 1 < nb:
+                        _submit_batch(idx + 1)  # 继续下一批
+                        st.rerun()
+                    else:
+                        parts = st.session_state.get("cloud_results", [])
+                        st.session_state["cloud_df"] = (
+                            pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+                        )
+                        st.session_state["cloud_stage"] = "done"
+                        status.update(label="执行完成", state="complete")
+                        st.rerun()
                 else:  # Failure
                     st.session_state["cloud_logview"] = logview_url(odps, inst_id)
                     st.session_state["cloud_stage"] = "failed"
-                    st.session_state["cloud_error"] = "SQL 执行失败，请查看 Logview"
+                    st.session_state["cloud_error"] = f"批次 {idx + 1}/{nb} SQL 执行失败，请查看 Logview"
                     st.rerun()
             except Exception as e:
                 st.session_state["cloud_stage"] = "failed"
@@ -722,10 +744,13 @@ with tab_cloud:
     if stage == "done":
         df = st.session_state.get("cloud_df")
         n = 0 if df is None else len(df)
+        nb = len(st.session_state.get("cloud_batches", []))
+        batch_chip = f'<span class="metric-chip">共 {nb} 批</span>' if nb > 1 else ""
         st.markdown(
             f'<div class="metric-row">'
             f'<span class="metric-chip green">✓ 执行成功</span>'
             f'<span class="metric-chip">{n:,} 行结果</span>'
+            f'{batch_chip}'
             f'</div>',
             unsafe_allow_html=True,
         )
