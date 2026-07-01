@@ -128,3 +128,25 @@ def test_fetch_result_uses_tunnel_full_and_returns_df():
 def test_logview_url():
     odps = _FakeODPS(_FakeInstance(logview="http://logview/abc"))
     assert logview_url(odps, "inst-1") == "http://logview/abc"
+
+
+def test_get_odps_caches_per_config(monkeypatch):
+    import app.odps_cloud as oc
+    oc._odps_client_cache.clear()
+    calls = {"n": 0}
+
+    def fake_build(cfg):
+        calls["n"] += 1
+        return f"client:{cfg.project}"
+
+    monkeypatch.setattr(oc, "_build_odps", fake_build)
+    cfg = CloudConfig(project="P", endpoint="http://e", ram_role=None)
+    first = oc.get_odps(cfg)
+    second = oc.get_odps(cfg)
+    assert first is second               # same cached object
+    assert calls["n"] == 1               # built only once
+    # 不同配置 → 重新构建
+    other = oc.get_odps(CloudConfig(project="Q", endpoint="http://e", ram_role=None))
+    assert calls["n"] == 2
+    assert other == "client:Q"
+    oc._odps_client_cache.clear()

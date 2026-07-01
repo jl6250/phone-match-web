@@ -85,14 +85,6 @@ def _copy_button(text: str, label: str = "📋 复制") -> None:
     )
 
 
-DEFAULT_ENDPOINT = os.environ.get(
-    "ODPS_ENDPOINT",
-    "https://service.cn.maxcompute.aliyun.com/api",
-)
-DEFAULT_PROJECT = os.environ.get("ODPS_PROJECT", "superengineproject")
-ENV_ACCESS_ID = os.environ.get("ODPS_ACCESS_ID", "")
-ENV_ACCESS_KEY = os.environ.get("ODPS_ACCESS_KEY", "")
-
 st.set_page_config(
     page_title="手机号 MD5 对照工具",
     page_icon="📱",
@@ -679,7 +671,7 @@ with tab_cloud:
                 st.session_state["cloud_started_at"] = time.time()
                 st.session_state.pop("cloud_error", None)
                 st.rerun()
-            except (CloudExecError, Exception) as e:
+            except Exception as e:
                 st.session_state["cloud_stage"] = "failed"
                 st.session_state["cloud_error"] = str(e)
 

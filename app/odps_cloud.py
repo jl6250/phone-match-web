@@ -69,7 +69,7 @@ def logview_url(odps, instance_id: str) -> str:
     return odps.get_instance(instance_id).get_logview_address()
 
 
-def get_odps(cfg: CloudConfig):
+def _build_odps(cfg: CloudConfig):
     """用 ECS RAM 角色 STS 构造 ODPS 客户端（无 AK）。
 
     STS 由 alibabacloud_credentials 从 ECS 元数据自动获取并轮转。
@@ -88,3 +88,14 @@ def get_odps(cfg: CloudConfig):
     cred = CredClient(CredConfig(**_credential_kwargs(cfg)))
     account = CredentialProviderAccount(cred)  # STS 自动轮转
     return ODPS(account=account, project=cfg.project, endpoint=cfg.endpoint)
+
+
+_odps_client_cache: dict = {}
+
+
+def get_odps(cfg: CloudConfig):
+    """返回缓存的 ODPS 客户端（按配置缓存，避免每次 rerun 重建）；无 AK。"""
+    key = (cfg.project, cfg.endpoint, cfg.ram_role)
+    if key not in _odps_client_cache:
+        _odps_client_cache[key] = _build_odps(cfg)
+    return _odps_client_cache[key]
