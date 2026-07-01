@@ -1,4 +1,9 @@
-"""可选：通过 pyodps 在 MaxCompute 执行脚本生成的 SQL（需 AK，勿写入代码仓库）。"""
+"""[已废弃] 旧的 pyodps + AK 执行骨架。
+
+云端执行改由 app/odps_cloud.py（ECS RAM 角色，无 AK）实现，见
+docs/superpowers/specs/2026-07-01-mc-cloud-execution-design.md。保留此文件仅为
+历史参考，勿在新代码中使用。
+"""
 
 from __future__ import annotations
 

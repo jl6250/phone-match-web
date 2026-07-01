@@ -5,8 +5,7 @@ services:
     ports:
       - "${PHONE_MATCH_PORT:-8501}:8501"
     environment:
-      ODPS_ACCESS_ID: ${ODPS_ACCESS_ID:-}
-      ODPS_ACCESS_KEY: ${ODPS_ACCESS_KEY:-}
-      ODPS_PROJECT: ${ODPS_PROJECT:-superengineproject}
-      ODPS_ENDPOINT: ${ODPS_ENDPOINT:-https://service.cn.maxcompute.aliyun.com/api}
+      ODPS_PROJECT: ${ODPS_PROJECT:-SuperEngineProject}
+      ODPS_ENDPOINT: ${ODPS_ENDPOINT:-http://service.ap-southeast-1.maxcompute.aliyun-inc.com/api}
+      ODPS_RAM_ROLE: ${ODPS_RAM_ROLE:-}
     restart: unless-stopped
