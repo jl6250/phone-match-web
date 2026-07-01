@@ -11,6 +11,7 @@ import json
 import os
 import io
 import zipfile
+import time
 
 import pandas as pd
 import streamlit as st
@@ -29,6 +30,15 @@ from app.match_phones import (
     read_phones_from_excel,
     read_phones_from_text,
     validate_ph_phone,
+)
+from app.odps_cloud import (
+    CloudExecError,
+    fetch_result,
+    get_odps,
+    load_config_from_env,
+    logview_url,
+    poll,
+    submit_sql,
 )
 
 def _md5_norm(s: str) -> str:
@@ -613,4 +623,131 @@ with tab_sql:
 
 # ── Tab 2：MC 云端执行 ────────────────────────────────────────────────────────
 with tab_cloud:
-    st.info("🚧 功能待开发")
+    st.markdown(
+        "用 ECS 实例 RAM 角色（无 AccessKey）直连 MaxCompute 执行匹配 SQL，"
+        "结果在页面内展示并可下载 CSV。仅在已绑定 RAM 角色的阿里云 ECS 上可用。"
+    )
+
+    _cfg = load_config_from_env()
+    st.markdown(
+        f'<div class="metric-row">'
+        f'<span class="metric-chip">项目 {_cfg.project}</span>'
+        f'<span class="metric-chip">Endpoint {_cfg.endpoint}</span>'
+        f'<span class="metric-chip green">凭证：ECS RAM 角色（无 AK）</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    c1, c2 = st.columns(2, gap="large")
+    with c1:
+        cloud_table = st.text_input("用户表", value=DEFAULT_MC_USER_TABLE, key="cloud_mc_table")
+        cloud_cipher = st.text_input("密文列", value=DEFAULT_MC_CIPHER_COLUMN, key="cloud_cipher")
+    with c2:
+        cloud_pt = st.text_input("分区条件", value=DEFAULT_MC_PARTITION_EXPR, key="cloud_pt")
+        cloud_login = st.text_input("登录名列", value="login_name", key="cloud_login")
+    cloud_extra = st.text_input(
+        "附加 AND 条件（可空）", value="", key="cloud_extra",
+        placeholder="例：business_line = 'bp'",
+    )
+
+    st.session_state.setdefault("cloud_stage", "idle")
+
+    def _build_cloud_sql() -> str:
+        if is_md5_mode:
+            return build_mc_md5_match_sql(
+                phones_list,
+                mc_table=cloud_table.strip(), login_column=cloud_login.strip(),
+                cipher_column=cloud_cipher.strip(), partition_predicate=cloud_pt.strip(),
+                extra_where=cloud_extra.strip() or None,
+            )
+        return build_mc_online_sql(
+            phones_list,
+            mc_table=cloud_table.strip(), login_column=cloud_login.strip(),
+            cipher_column=cloud_cipher.strip(), partition_predicate=cloud_pt.strip(),
+            extra_where=cloud_extra.strip() or None,
+        )
+
+    if st.button("☁️ 云端执行", type="primary", key="btn_cloud"):
+        if not phones_list:
+            st.warning("请先在上方填写或上传数据（明文手机号或 MD5 密文）")
+        else:
+            try:
+                sql = _build_cloud_sql()
+                odps = get_odps(_cfg)
+                st.session_state["cloud_instance_id"] = submit_sql(odps, sql)
+                st.session_state["cloud_stage"] = "running"
+                st.session_state["cloud_started_at"] = time.time()
+                st.session_state.pop("cloud_error", None)
+                st.rerun()
+            except (CloudExecError, Exception) as e:
+                st.session_state["cloud_stage"] = "failed"
+                st.session_state["cloud_error"] = str(e)
+
+    stage = st.session_state.get("cloud_stage", "idle")
+    inst_id = st.session_state.get("cloud_instance_id")
+
+    if stage == "running" and inst_id:
+        with st.status(f"云端执行中… instance={inst_id}", expanded=True) as status:
+            try:
+                elapsed = time.time() - st.session_state.get("cloud_started_at", time.time())
+                if elapsed > 300:  # 轮询超时上限 5 分钟
+                    odps = get_odps(_cfg)
+                    st.session_state["cloud_logview"] = logview_url(odps, inst_id)
+                    st.session_state["cloud_stage"] = "failed"
+                    st.session_state["cloud_error"] = (
+                        "轮询超过 5 分钟未完成，已停止等待；可凭 Logview 去控制台查看作业。"
+                    )
+                    st.rerun()
+                odps = get_odps(_cfg)
+                state = poll(odps, inst_id)
+                st.write(f"状态：{state}（已等待 {int(elapsed)}s）")
+                if state == "Running":
+                    time.sleep(2)
+                    st.rerun()
+                elif state == "Success":
+                    df = fetch_result(odps, inst_id)
+                    st.session_state["cloud_df"] = df
+                    st.session_state["cloud_logview"] = logview_url(odps, inst_id)
+                    st.session_state["cloud_stage"] = "done"
+                    status.update(label="执行完成", state="complete")
+                    st.rerun()
+                else:  # Failure
+                    st.session_state["cloud_logview"] = logview_url(odps, inst_id)
+                    st.session_state["cloud_stage"] = "failed"
+                    st.session_state["cloud_error"] = "SQL 执行失败，请查看 Logview"
+                    st.rerun()
+            except Exception as e:
+                st.session_state["cloud_stage"] = "failed"
+                st.session_state["cloud_error"] = str(e)
+                st.rerun()
+
+    if stage == "done":
+        df = st.session_state.get("cloud_df")
+        n = 0 if df is None else len(df)
+        st.markdown(
+            f'<div class="metric-row">'
+            f'<span class="metric-chip green">✓ 执行成功</span>'
+            f'<span class="metric-chip">{n:,} 行结果</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        if st.session_state.get("cloud_logview"):
+            st.markdown(f"[🔗 MaxCompute Logview]({st.session_state['cloud_logview']})")
+        if df is not None:
+            st.dataframe(df, use_container_width=True, height=420)
+            st.download_button(
+                "⬇️ 下载结果 CSV",
+                df.to_csv(index=False).encode("utf-8-sig"),
+                file_name="phone_match_result.csv",
+                mime="text/csv; charset=utf-8",
+                key="dl_cloud_csv",
+            )
+
+    if stage == "failed":
+        st.error(f"云端执行失败：{st.session_state.get('cloud_error', '未知错误')}")
+        if st.session_state.get("cloud_logview"):
+            st.markdown(f"[🔗 MaxCompute Logview]({st.session_state['cloud_logview']})")
+        st.caption(
+            "排查：① ECS 是否绑定了具备 MaxCompute 权限的 RAM 角色；"
+            "② 该角色是否为 MC 项目成员并有表 SELECT + Tunnel Download 权限。"
+        )
