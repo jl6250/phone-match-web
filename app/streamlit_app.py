@@ -31,6 +31,8 @@ from app.match_phones import (
     read_phones_from_text,
     validate_ph_phone,
 )
+import traceback
+
 from app.odps_cloud import (
     CloudExecError,
     fetch_result,
@@ -38,6 +40,7 @@ from app.odps_cloud import (
     load_config_from_env,
     logview_url,
     poll,
+    sql_for_cloud,
     submit_sql,
 )
 
@@ -664,16 +667,18 @@ with tab_cloud:
             st.warning("请先在上方填写或上传数据（明文手机号或 MD5 密文）")
         else:
             try:
-                sql = _build_cloud_sql()
+                sql = sql_for_cloud(_build_cloud_sql())
                 odps = get_odps(_cfg)
                 st.session_state["cloud_instance_id"] = submit_sql(odps, sql)
                 st.session_state["cloud_stage"] = "running"
                 st.session_state["cloud_started_at"] = time.time()
                 st.session_state.pop("cloud_error", None)
+                st.session_state.pop("cloud_trace", None)
                 st.rerun()
             except Exception as e:
                 st.session_state["cloud_stage"] = "failed"
                 st.session_state["cloud_error"] = str(e)
+                st.session_state["cloud_trace"] = traceback.format_exc()
 
     stage = st.session_state.get("cloud_stage", "idle")
     inst_id = st.session_state.get("cloud_instance_id")
@@ -711,6 +716,7 @@ with tab_cloud:
             except Exception as e:
                 st.session_state["cloud_stage"] = "failed"
                 st.session_state["cloud_error"] = str(e)
+                st.session_state["cloud_trace"] = traceback.format_exc()
                 st.rerun()
 
     if stage == "done":
@@ -739,6 +745,9 @@ with tab_cloud:
         st.error(f"云端执行失败：{st.session_state.get('cloud_error', '未知错误')}")
         if st.session_state.get("cloud_logview"):
             st.markdown(f"[🔗 MaxCompute Logview]({st.session_state['cloud_logview']})")
+        if st.session_state.get("cloud_trace"):
+            with st.expander("查看完整错误堆栈（排查用）", expanded=False):
+                st.code(st.session_state["cloud_trace"], language="text")
         st.caption(
             "排查：① ECS 是否绑定了具备 MaxCompute 权限的 RAM 角色；"
             "② 该角色是否为 MC 项目成员并有表 SELECT + Tunnel Download 权限。"

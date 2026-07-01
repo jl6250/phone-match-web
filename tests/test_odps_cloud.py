@@ -205,3 +205,19 @@ def test_get_odps_caches_within_ttl_and_rebuilds_after(monkeypatch):
     oc.get_odps(CloudConfig(project="Q", endpoint="http://e", ram_role=None), _now=1000)
     assert calls["n"] == 3
     oc._odps_cache.clear()
+
+
+def test_sql_for_cloud_strips_comment_lines():
+    from app.odps_cloud import sql_for_cloud
+    sql = (
+        "-- 由 phone-match-web 生成（MaxCompute / ODPS）\n"
+        "-- 用户表: proj.tbl | 密文列: phone_hex\n"
+        "set odps.sql.validate.orderby.limit=false;\n"
+        "SELECT login_name FROM proj.tbl WHERE phone_hex IN ('abc');\n"
+        "  -- 缩进注释也要去掉\n"
+    )
+    out = sql_for_cloud(sql)
+    assert "--" not in out                      # 注释行全部剥离
+    assert "由 phone-match-web" not in out       # 中文注释已去除
+    assert "set odps.sql.validate.orderby.limit=false;" in out
+    assert "SELECT login_name FROM proj.tbl" in out

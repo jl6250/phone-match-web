@@ -43,6 +43,17 @@ def load_config_from_env() -> CloudConfig:
     )
 
 
+def sql_for_cloud(sql: str) -> str:
+    """去掉 `--` 注释行（含中文说明），返回纯可执行 SQL。
+
+    云端由 pyodps 直接执行，无需人类可读注释；剥离非 ASCII 注释也可规避个别
+    环境下多字节字符在请求/响应链路引发的编码问题。仅删除整行注释；行内值里的
+    单引号字符串（MD5/手机号）不含 `--`，不受影响。
+    """
+    lines = [ln for ln in sql.splitlines() if not ln.lstrip().startswith("--")]
+    return "\n".join(lines).strip()
+
+
 def submit_sql(odps, sql: str) -> str:
     """异步提交 SQL，返回 instance_id（不阻塞）。"""
     return odps.run_sql(sql).id
