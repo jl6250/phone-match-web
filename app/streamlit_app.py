@@ -518,9 +518,9 @@ with tab_sql:
 
     max_kb = st.number_input(
         "单批最大体积 (KB)",
-        min_value=10, max_value=500, value=120, step=10,
+        min_value=10, max_value=500, value=90, step=10,
         key="sql_max_kb",
-        help="超过该体积自动拆成多批，规避 DataWorks 单段 SQL 约 130KB 的限制；每批为独立可运行的 SQL。",
+        help="超过该体积自动拆成多批，每批为独立可运行的 SQL。默认 90KB：DataWorks「数据分析」保存草稿按请求体校验（换行转义/编码会膨胀 ~1.3x），90KB 原始 SQL 膨胀后仍稳在 130KB 限制内；粘贴仍报超限可再调小。",
     )
 
     if st.button("生成 SQL", type="primary", key="btn_sql", use_container_width=False):
