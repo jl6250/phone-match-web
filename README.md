@@ -18,17 +18,23 @@ chmod +x run_web.sh
 ```bash
 cd phone-match-web
 docker compose build
-# 按需传入 ODPS_*（仅「MC 执行 SQL」需要 AK 时）
-export ODPS_ACCESS_ID=... ODPS_ACCESS_KEY=...
 docker compose up -d
 ```
-
-也可使用 `docker compose --env-file .env up -d`（自行从 `.env.example` 复制 `.env`，勿提交 Git）。
 
 默认映射端口 `8501`，可通过环境变量 `PHONE_MATCH_PORT` 修改。
 
 - 镜像内监听 `0.0.0.0:8501`，**请勿直接暴露公网**；建议前置 Nginx / 阿里云 ALB，开启 HTTPS 与访问控制，可参考 `nginx.example.conf`。
-- **不要**把 AccessKey 打进镜像层；通过运行环境注入 `ODPS_ACCESS_ID`、`ODPS_ACCESS_KEY` 等。
+- 「MC 云端执行」**不使用 AccessKey**：凭证由运行 app 的**阿里云 ECS 实例 RAM 角色**自动提供（临时 STS）。相关环境变量：
+  - `ODPS_PROJECT`（默认 `SuperEngineProject`）
+  - `ODPS_ENDPOINT`（默认新加坡 VPC 内网 `http://service.ap-southeast-1.maxcompute.aliyun-inc.com/api`）
+  - `ODPS_RAM_ROLE`（默认空＝自动探测 ECS 绑定角色）
+
+### 云端执行部署前置（RAM 授权，一次性）
+
+1. 给运行 app 的 ECS 实例**绑定一个 RAM 角色**（如无则新建）。
+2. 该 RAM 角色授予 MaxCompute 访问权限（如 `AliyunODPSFullAccess`，或最小化的 SuperEngineProject 读 + Tunnel 下载权限）。
+3. 在 MaxCompute 项目内把该角色对应身份**加为项目成员**，并授予对目标表（如 `dim_user_info_df`）的 `SELECT` 与 Tunnel `Download` 权限。
+4. 首次上线后在 ECS 上做一次冒烟：在 Tab 2 用少量手机号执行一次，确认能连通并取回结果。
 
 ## 生产发布（基于 git）
 
