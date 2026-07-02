@@ -103,169 +103,159 @@ st.markdown(
 /* ===== 全局 ===== */
 html, body, [class*="css"] { font-family: "PingFang SC", "Helvetica Neue", sans-serif; }
 
-/* ===== 主标题卡 ===== */
+/* ===== 顶部标题条（瘦身浅色，取代原深色英雄卡） ===== */
 .hero-card {
-    background: linear-gradient(135deg, #1a1f3c 0%, #2d3561 50%, #1a1f3c 100%);
-    border-radius: 16px;
-    padding: 28px 36px;
-    margin-bottom: 24px;
-    border: 1px solid rgba(99,102,241,0.3);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
-}
-.hero-title {
-    font-size: 2rem;
-    font-weight: 700;
-    background: linear-gradient(90deg, #818cf8, #c4b5fd, #60a5fa);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin: 0 0 6px 0;
-}
-.hero-sub {
-    color: #94a3b8;
-    font-size: 0.88rem;
-    margin: 0;
-}
-
-/* ===== 规则说明框 ===== */
-.rule-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(99,102,241,0.12);
-    border: 1px solid rgba(99,102,241,0.35);
-    border-radius: 8px;
-    padding: 8px 14px;
-    margin: 4px 4px 4px 0;
-    font-size: 0.82rem;
-    color: #c4b5fd;
-}
-.rule-badge strong { color: #a5b4fc; }
-
-/* ===== 段落卡片 ===== */
-.section-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    background: #ffffff;
+    border: 1px solid #e6e9ef;
+    border-radius: 14px;
     padding: 20px 24px;
     margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 6px 18px rgba(16,24,40,0.05);
 }
-.section-title {
-    font-size: 0.78rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+.hero-logo {
+    flex: 0 0 auto;
+    width: 44px; height: 44px;
+    border-radius: 11px;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 4px 12px rgba(79,70,229,0.28);
+}
+.hero-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 4px 0;
+}
+.hero-sub {
     color: #64748b;
-    margin-bottom: 12px;
+    font-size: 0.86rem;
+    line-height: 1.55;
+    margin: 0;
+}
+.hero-sub code, .hero-title code {
+    background: #eef2ff; color: #4f46e5;
+    padding: 1px 6px; border-radius: 5px; font-size: 0.82em;
 }
 
-/* ===== 指标行 ===== */
+/* ===== section 小标题 ===== */
+.section-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #475569;
+    margin-bottom: 10px;
+}
+
+/* ===== 指标行 / chip（浅色） ===== */
 .metric-row {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     margin: 12px 0 4px;
     flex-wrap: wrap;
 }
 .metric-chip {
-    background: rgba(99,102,241,0.15);
-    border: 1px solid rgba(99,102,241,0.3);
-    border-radius: 20px;
-    padding: 4px 14px;
-    font-size: 0.82rem;
-    color: #a5b4fc;
+    background: #eef2ff;
+    border: 1px solid #dfe3f5;
+    border-radius: 999px;
+    padding: 3px 11px;
+    font-size: 0.78rem;
+    color: #4f46e5;
     font-weight: 500;
 }
-.metric-chip.green  { background:rgba(16,185,129,0.12); border-color:rgba(16,185,129,0.3); color:#6ee7b7; }
-.metric-chip.yellow { background:rgba(245,158,11,0.12); border-color:rgba(245,158,11,0.3); color:#fcd34d; }
-.metric-chip.red    { background:rgba(239,68,68,0.12);  border-color:rgba(239,68,68,0.3);  color:#fca5a5; }
+.metric-chip.green  { background:#ecfdf5; border-color:#a7f3d0; color:#059669; }
+.metric-chip.yellow { background:#fffbeb; border-color:#fde68a; color:#b45309; }
+.metric-chip.red    { background:#fef2f2; border-color:#fecaca; color:#dc2626; }
+/* 顶部标题条内的 chip 更低调，作为安静的说明条而非状态徽标 */
+.hero-chips { display: flex; gap: 7px; margin-top: 14px; flex-wrap: wrap; }
+.hero-chips .metric-chip {
+    background: #f5f6fb; border-color: #e6e9ef; color: #64748b;
+}
 
 /* ===== 按钮优化 ===== */
 .stButton > button {
-    border-radius: 8px !important;
+    border-radius: 9px !important;
     font-weight: 600 !important;
     font-size: 0.88rem !important;
-    transition: all .2s ease !important;
-    padding: 0.45rem 1.4rem !important;
+    transition: all .15s ease !important;
+    padding: 0.5rem 1.4rem !important;
 }
 .stButton > button[kind="primary"] {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+    background: #4f46e5 !important;
     border: none !important;
     color: #fff !important;
+    box-shadow: 0 4px 12px rgba(79,70,229,0.28) !important;
 }
 .stButton > button[kind="primary"]:hover {
+    background: #4338ca !important;
     transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(99,102,241,0.45) !important;
+    box-shadow: 0 6px 16px rgba(79,70,229,0.36) !important;
 }
 
-/* ===== Tab 样式 ===== */
+/* ===== Tab 样式（下划线分段） ===== */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 4px;
-    background: rgba(255,255,255,0.04);
-    border-radius: 10px;
-    padding: 4px;
+    gap: 26px;
+    border-bottom: 1px solid #e6e9ef;
 }
 .stTabs [data-baseweb="tab"] {
-    border-radius: 8px !important;
     font-weight: 500 !important;
-    color: #94a3b8 !important;
-    padding: 6px 18px !important;
+    color: #64748b !important;
+    padding: 6px 2px !important;
 }
 .stTabs [aria-selected="true"] {
-    background: rgba(99,102,241,0.25) !important;
-    color: #a5b4fc !important;
+    color: #4f46e5 !important;
+    font-weight: 600 !important;
+}
+.stTabs [data-baseweb="tab-highlight"] {
+    background-color: #4f46e5 !important;
+    height: 2px !important;
 }
 
 /* ===== 文件上传区 ===== */
 [data-testid="stFileUploader"] {
-    border: 2px dashed rgba(99,102,241,0.35) !important;
-    border-radius: 10px !important;
-    background: rgba(99,102,241,0.05) !important;
-    padding: 8px !important;
+    border: 1.5px dashed #c7d2fe !important;
+    border-radius: 11px !important;
+    background: #fafbff !important;
+    padding: 10px !important;
 }
 
 /* ===== Expander ===== */
-.streamlit-expanderHeader {
-    background: rgba(255,255,255,0.04) !important;
-    border-radius: 10px !important;
-    font-weight: 600 !important;
+[data-testid="stExpander"] {
+    border: 1px solid #e6e9ef !important;
+    border-radius: 12px !important;
 }
+.streamlit-expanderHeader { font-weight: 600 !important; }
 
-/* ===== Sidebar ===== */
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%) !important;
-    border-right: 1px solid rgba(255,255,255,0.07) !important;
-}
-.sidebar-section {
-    background: rgba(255,255,255,0.04);
-    border-radius: 10px;
-    padding: 14px 16px;
-    margin-bottom: 12px;
-    border: 1px solid rgba(255,255,255,0.07);
-}
-.sidebar-section h4 {
-    color: #94a3b8;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin: 0 0 10px 0;
-}
-
-/* ===== 下载按钮 ===== */
+/* ===== 下载按钮（绿色描边） ===== */
 [data-testid="stDownloadButton"] > button {
-    border-radius: 8px !important;
-    border: 1px solid rgba(16,185,129,0.4) !important;
-    color: #6ee7b7 !important;
-    background: rgba(16,185,129,0.1) !important;
+    border-radius: 9px !important;
+    border: 1px solid #a7f3d0 !important;
+    color: #059669 !important;
+    background: #ecfdf5 !important;
     font-weight: 600 !important;
 }
 [data-testid="stDownloadButton"] > button:hover {
-    background: rgba(16,185,129,0.2) !important;
+    background: #d1fae5 !important;
+    border-color: #6ee7b7 !important;
 }
+
+/* ===== 数据表 ===== */
+[data-testid="stDataFrame"] {
+    border: 1px solid #e6e9ef !important;
+    border-radius: 10px !important;
+}
+
+/* ===== 步骤 Tab（放大做主步骤指示，去掉重复的进度条） ===== */
+.stTabs [data-baseweb="tab"] { font-size: 0.95rem !important; }
 
 /* ===== 代码块 ===== */
 .stCodeBlock { border-radius: 10px !important; }
 
 /* ===== 分割线 ===== */
-hr { border-color: rgba(255,255,255,0.08) !important; }
+hr { border-color: #e6e9ef !important; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -275,20 +265,10 @@ hr { border-color: rgba(255,255,255,0.08) !important; }
 st.markdown(
     """
 <div class="hero-card">
-  <p class="hero-title">📱 手机号 MD5 对照工具</p>
-  <p class="hero-sub">
-    支持明文手机号（自动转 MD5）或直接输入 MD5 密文，与数仓 <code>login_name</code> 关联匹配 &nbsp;·&nbsp;
-    默认表 <code>superengineproject.dim_user_info_df</code>（phone_hex，pt=MAX_PT）
-  </p>
-  <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
-    <span class="metric-chip">明文：MD5 10位去0 / 11位补0</span>
-    <span class="metric-chip">明文严格校验 · 纯数字 10–13 位</span>
-    <span class="metric-chip">MD5 密文：直接匹配</span>
-    <span class="metric-chip yellow">文件上限 100 MB</span>
-    <span class="metric-chip green">支持 TXT / CSV / TSV / Excel</span>
-    <span class="metric-chip">多 Sheet · 多列手机号</span>
-    <span class="metric-chip">超大输入自动分批 SQL</span>
-    <span class="metric-chip">保持原始顺序 · 重复数据原样保留</span>
+  <div class="hero-logo">📱</div>
+  <div>
+    <p class="hero-title">手机号 MD5 对照工具</p>
+    <p class="hero-sub">明文 / MD5 密文 &nbsp;→&nbsp; 与数仓 <code>login_name</code> 关联匹配</p>
   </div>
 </div>
 """,
@@ -296,10 +276,22 @@ st.markdown(
 )
 
 
-# ─── 手机号输入区 ──────────────────────────────────────────────────────────────
-st.session_state.setdefault("last_sql", "")
+# ─── 匹配规则（默认折叠，减少首屏文字） ────────────────────────────────────────
+with st.expander("ⓘ 匹配规则与支持格式", expanded=False):
+    st.markdown(
+        "- 明文自动转 MD5（10 位去 0 / 11 位补 0），严格校验纯数字 10–13 位\n"
+        "- MD5 密文直接匹配数仓密文列\n"
+        "- 支持 TXT / CSV / TSV / Excel（多 Sheet、多列），单文件 ≤ 100 MB\n"
+        "- 超大输入自动分批；保持原始顺序，重复数据原样保留\n"
+        "- 默认表 `superengineproject.dim_user_info_df`（phone_hex，pt=MAX_PT）"
+    )
 
-with st.expander("① 输入数据：明文手机号 / MD5 密文（各 Tab 共用）", expanded=True):
+# ─── 三步向导：① 输入 → ② 执行 → ③ 结果 ─────────────────────────────────────
+st.session_state.setdefault("last_sql", "")
+st.session_state.setdefault("cloud_stage", "idle")
+tab_input, tab_exec, tab_result = st.tabs(["①  输入数据", "②  执行", "③  结果"])
+
+with tab_input:
     input_kind = st.radio(
         "输入类型",
         options=["明文手机号", "MD5 密文"],
@@ -432,350 +424,317 @@ with st.expander("① 输入数据：明文手机号 / MD5 密文（各 Tab 共�
     else:
         upper_md5_global = False
 
-# 解析手机号
-phones_err: str | None = None
-phones_list: list[str] = []
-if excel_phones is not None:
-    phones_list = excel_phones
-elif body.strip():
-    try:
-        phones_list = read_phones_from_text(body, col_phone or None, normalizer=_normalizer)
-    except ValueError as e:
-        phones_err = str(e)
+    # 解析手机号
+    phones_err: str | None = None
+    phones_list: list[str] = []
+    if excel_phones is not None:
+        phones_list = excel_phones
+    elif body.strip():
+        try:
+            phones_list = read_phones_from_text(body, col_phone or None, normalizer=_normalizer)
+        except ValueError as e:
+            phones_err = str(e)
 
-if phones_err:
-    st.error(f"解析失败：{phones_err}")
-elif phones_list:
-    if is_md5_mode:
-        valid_md5 = [h for h in phones_list if is_md5_hex(h)]
-        invalid_n = len(phones_list) - len(valid_md5)
-        phones_list = valid_md5  # 仅有效 MD5 进入后续 SQL 生成
-        uniq_count = len(set(valid_md5))
-        dup_count = len(valid_md5) - uniq_count
-        dup_chip = f'<span class="metric-chip yellow">含重复 {dup_count:,} 条</span>' if dup_count else ""
-        invalid_chip = f'<span class="metric-chip yellow">忽略 {invalid_n:,} 条无效（非 32 位 hex）</span>' if invalid_n else ""
-        st.markdown(
-            f'<div class="metric-row">'
-            f'<span class="metric-chip green">✓ 已解析 {len(valid_md5):,} 条有效 MD5</span>'
-            f'<span class="metric-chip">去重后 {uniq_count:,} 条唯一值</span>'
-            f'{dup_chip}{invalid_chip}'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-    else:
-        # 明文严格校验：仅 ASCII 数字、去 63 国家码后 10–13 位；非法行丢弃并计数
-        checked = [(raw, validate_ph_phone(raw)) for raw in phones_list]
-        valid_phones = [n for _, n in checked if n is not None]
-        invalid_raws = [raw for raw, n in checked if n is None]
-        invalid_n = len(invalid_raws)
-        phones_list = valid_phones  # 仅合法手机号进入后续 SQL 生成
-        uniq_count = len(set(valid_phones))
-        dup_count = len(valid_phones) - uniq_count
-        dup_chip = f'<span class="metric-chip yellow">含重复 {dup_count:,} 条</span>' if dup_count else ""
-        invalid_chip = f'<span class="metric-chip yellow">忽略 {invalid_n:,} 条非法（非纯数字/位数不符）</span>' if invalid_n else ""
-        st.markdown(
-            f'<div class="metric-row">'
-            f'<span class="metric-chip green">✓ 已解析 {len(valid_phones):,} 条合法手机号</span>'
-            f'<span class="metric-chip">去重后 {uniq_count:,} 条唯一值</span>'
-            f'{dup_chip}{invalid_chip}'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-        if invalid_raws:
-            with st.expander(f"查看被忽略的 {invalid_n:,} 条非法行", expanded=False):
-                _idf = pd.DataFrame({"原始值": invalid_raws[:1000]})
-                st.dataframe(_idf, use_container_width=True, height=200)
-                if invalid_n > 1000:
-                    st.caption(f"仅展示前 1000 条，共 {invalid_n:,} 条")
-    with st.expander("查看解析明细（排查行数异常用）", expanded=False):
-        _df = pd.DataFrame({"#": range(1, len(phones_list)+1), "解析结果": phones_list})
-        st.dataframe(_df, use_container_width=True, height=220)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# ─── 功能 Tabs ────────────────────────────────────────────────────────────────
-tab_sql, tab_cloud = st.tabs(
-    ["🗄️ 生成 MaxCompute SQL", "☁️ MC 云端执行"]
-)
-
-# ── Tab 1：生成 SQL ──────────────────────────────────────────────────────────
-with tab_sql:
-    st.markdown(
-        "对大表用 `phone_hex IN (...)` 过滤，无需下载全表。"
-        "生成的 SQL 可在 DataWorks / MaxCompute 控制台直接运行。",
-    )
-
-    col1, col2 = st.columns(2, gap="large")
-    with col1:
-        mc_table = st.text_input("用户表", value=DEFAULT_MC_USER_TABLE, key="sql_mc_table")
-        cipher_col = st.text_input("密文列", value=DEFAULT_MC_CIPHER_COLUMN, key="sql_cipher")
-    with col2:
-        partition_expr = st.text_input("分区条件", value=DEFAULT_MC_PARTITION_EXPR, key="sql_pt")
-        login_col = st.text_input("登录名列", value="login_name", key="sql_login")
-
-    extra_where = st.text_input(
-        "附加 AND 条件（可空）",
-        value="",
-        key="sql_extra",
-        placeholder="例：business_line = 'bp'",
-    )
-
-    max_kb = st.number_input(
-        "单批最大体积 (KB)",
-        min_value=10, max_value=500, value=90, step=10,
-        key="sql_max_kb",
-        help="超过该体积自动拆成多批，每批为独立可运行的 SQL。默认 90KB：DataWorks「数据分析」保存草稿按请求体校验（换行转义/编码会膨胀 ~1.3x），90KB 原始 SQL 膨胀后仍稳在 130KB 限制内；粘贴仍报超限可再调小。",
-    )
-
-    if st.button("生成 SQL", type="primary", key="btn_sql", use_container_width=False):
-        if not phones_list:
-            st.warning("请先在上方填写或上传数据（明文手机号或 MD5 密文）")
+    if phones_err:
+        st.error(f"解析失败：{phones_err}")
+    elif phones_list:
+        if is_md5_mode:
+            valid_md5 = [h for h in phones_list if is_md5_hex(h)]
+            invalid_n = len(phones_list) - len(valid_md5)
+            phones_list = valid_md5  # 仅有效 MD5 进入后续 SQL 生成
+            uniq_count = len(set(valid_md5))
+            dup_count = len(valid_md5) - uniq_count
+            dup_chip = f'<span class="metric-chip yellow">含重复 {dup_count:,} 条</span>' if dup_count else ""
+            invalid_chip = f'<span class="metric-chip yellow">忽略 {invalid_n:,} 条无效（非 32 位 hex）</span>' if invalid_n else ""
+            st.markdown(
+                f'<div class="metric-row">'
+                f'<span class="metric-chip green">✓ 已解析 {len(valid_md5):,} 条有效 MD5</span>'
+                f'<span class="metric-chip">去重后 {uniq_count:,} 条唯一值</span>'
+                f'{dup_chip}{invalid_chip}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
         else:
-            def _builder(rows: list[str]) -> str:
-                if is_md5_mode:
-                    return build_mc_md5_match_sql(
-                        rows,
-                        mc_table=mc_table.strip(),
-                        login_column=login_col.strip(),
-                        cipher_column=cipher_col.strip(),
-                        partition_predicate=partition_expr.strip(),
-                        extra_where=extra_where.strip() or None,
-                    )
-                return build_mc_online_sql(
-                    rows,
-                    mc_table=mc_table.strip(),
-                    login_column=login_col.strip(),
-                    cipher_column=cipher_col.strip(),
-                    partition_predicate=partition_expr.strip(),
-                    extra_where=extra_where.strip() or None,
-                )
+            # 明文严格校验：仅 ASCII 数字、去 63 国家码后 10–13 位；非法行丢弃并计数
+            checked = [(raw, validate_ph_phone(raw)) for raw in phones_list]
+            valid_phones = [n for _, n in checked if n is not None]
+            invalid_raws = [raw for raw, n in checked if n is None]
+            invalid_n = len(invalid_raws)
+            phones_list = valid_phones  # 仅合法手机号进入后续 SQL 生成
+            uniq_count = len(set(valid_phones))
+            dup_count = len(valid_phones) - uniq_count
+            dup_chip = f'<span class="metric-chip yellow">含重复 {dup_count:,} 条</span>' if dup_count else ""
+            invalid_chip = f'<span class="metric-chip yellow">忽略 {invalid_n:,} 条非法（非纯数字/位数不符）</span>' if invalid_n else ""
+            st.markdown(
+                f'<div class="metric-row">'
+                f'<span class="metric-chip green">✓ 已解析 {len(valid_phones):,} 条合法手机号</span>'
+                f'<span class="metric-chip">去重后 {uniq_count:,} 条唯一值</span>'
+                f'{dup_chip}{invalid_chip}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+            if invalid_raws:
+                with st.expander(f"查看被忽略的 {invalid_n:,} 条非法行", expanded=False):
+                    _idf = pd.DataFrame({"原始值": invalid_raws[:1000]})
+                    st.dataframe(_idf, use_container_width=True, height=200)
+                    if invalid_n > 1000:
+                        st.caption(f"仅展示前 1000 条，共 {invalid_n:,} 条")
+        with st.expander("查看解析明细（排查行数异常用）", expanded=False):
+            _df = pd.DataFrame({"#": range(1, len(phones_list)+1), "解析结果": phones_list})
+            st.dataframe(_df, use_container_width=True, height=220)
+    else:
+        st.caption("填写或上传数据后，这里会显示解析结果。")
 
+# ── 步骤②：执行 ──────────────────────────────────────────────────────────────
+with tab_exec:
+    if not phones_list:
+        st.info("请先在「①  输入数据」填写或上传数据。")
+
+    exec_mode = st.radio(
+        "执行方式",
+        options=["🗄️ 生成 SQL", "☁️ 云端执行"],
+        horizontal=True,
+        key="exec_mode",
+        help="生成 SQL：产出可复制到 DataWorks / MaxCompute 控制台运行的 SQL；"
+             "云端执行：用 ECS RAM 角色直连 MaxCompute 直接出结果（仅阿里云 ECS 可用）",
+    )
+    is_cloud = "云端" in exec_mode
+
+    ec1, ec2 = st.columns(2, gap="large")
+    with ec1:
+        mc_table = st.text_input("用户表", value=DEFAULT_MC_USER_TABLE, key="cfg_table")
+        cipher_col = st.text_input("密文列", value=DEFAULT_MC_CIPHER_COLUMN, key="cfg_cipher")
+    with ec2:
+        partition_expr = st.text_input("分区条件", value=DEFAULT_MC_PARTITION_EXPR, key="cfg_pt")
+        login_col = st.text_input("登录名列", value="login_name", key="cfg_login")
+
+    with st.expander("更多设置", expanded=False):
+        extra_where = st.text_input(
+            "附加 AND 条件（可空）", value="", key="cfg_extra",
+            placeholder="例：business_line = 'bp'",
+        )
+        max_kb = st.number_input(
+            "单批最大体积 (KB，仅「生成 SQL」用)",
+            min_value=10, max_value=500, value=90, step=10,
+            key="cfg_max_kb",
+            help="超过该体积自动拆成多批，每批独立可运行。默认 90KB 适配 DataWorks 草稿保存 130KB 限制。",
+        )
+
+    _cfg = load_config_from_env()
+    if is_cloud:
+        st.caption(
+            f"凭证：ECS RAM 角色（无 AccessKey）· 项目 {_cfg.project} · "
+            "仅在已绑定 RAM 角色的阿里云 ECS 上可用"
+        )
+
+    def _builder(rows: list[str]) -> str:
+        if is_md5_mode:
+            return build_mc_md5_match_sql(
+                rows,
+                mc_table=mc_table.strip(), login_column=login_col.strip(),
+                cipher_column=cipher_col.strip(), partition_predicate=partition_expr.strip(),
+                extra_where=extra_where.strip() or None,
+            )
+        return build_mc_online_sql(
+            rows,
+            mc_table=mc_table.strip(), login_column=login_col.strip(),
+            cipher_column=cipher_col.strip(), partition_predicate=partition_expr.strip(),
+            extra_where=extra_where.strip() or None,
+        )
+
+    # MC 单条 SQL 上限 2,097,152 字节；留余量并计入注释（构建时含注释，提交前再剥离）
+    _CLOUD_SQL_MAX_BYTES = 1_900_000
+
+    def _submit_batch(idx: int) -> None:
+        odps = get_odps(_cfg)
+        batches = st.session_state["cloud_batches"]
+        body_sql, hints = split_sql_hints(batches[idx])  # set 行作为 hint，避免多语句报错
+        st.session_state["cloud_instance_id"] = submit_sql(odps, body_sql, hints=hints)
+        st.session_state["cloud_batch_idx"] = idx
+        st.session_state["cloud_started_at"] = time.time()
+
+    if not is_cloud:
+        if st.button("🗄️ 生成 SQL", type="primary", key="btn_sql", disabled=not phones_list):
             max_bytes = int(max_kb) * 1000
             try:
                 batches = build_sql_batches(phones_list, _builder, max_bytes=max_bytes)
             except ValueError as e:
                 st.error(str(e))
                 batches = []
-
             if batches:
                 total_chars = sum(len(b) for b in batches)
                 unit = "条 MD5" if is_md5_mode else "条手机号"
-                st.session_state["last_sql"] = batches[0]
-                st.markdown(
-                    f'<div class="metric-row">'
-                    f'<span class="metric-chip green">✓ SQL 生成成功</span>'
-                    f'<span class="metric-chip">{len(phones_list):,} {unit}</span>'
-                    f'<span class="metric-chip">共 {len(batches)} 批</span>'
-                    f'<span class="metric-chip">{total_chars:,} 字符</span>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
-
                 oversize = [k for k, b in enumerate(batches, 1)
                             if len(b.encode("utf-8")) > max_bytes]
-                if oversize:
-                    st.warning(
-                        f"第 {oversize} 批单批仍超过 {int(max_kb)}KB（可能单行过长），"
-                        f"请调高阈值或检查输入。"
-                    )
-
-                if len(batches) == 1:
-                    sql = batches[0]
-                    st.code(sql, language="sql")
-                    _copy_button(sql, "📋 复制 SQL")
-                    st.download_button(
-                        "⬇️ 下载 phone_match_odps.sql",
-                        sql,
-                        file_name="phone_match_odps.sql",
-                        mime="text/plain; charset=utf-8",
-                        key="dl_sql",
-                    )
-                else:
-                    st.info(f"已拆成 {len(batches)} 批，请逐批在 DataWorks 运行（结果可直接合并）。")
-                    zip_buf = io.BytesIO()
-                    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                        for k, b in enumerate(batches, 1):
-                            zf.writestr(f"phone_match_odps_part{k:02d}.sql", b)
-                    st.download_button(
-                        f"⬇️ 打包下载全部 {len(batches)} 批 (.zip)",
-                        zip_buf.getvalue(),
-                        file_name="phone_match_odps_batches.zip",
-                        mime="application/zip",
-                        key="dl_zip",
-                    )
-                    for k, b in enumerate(batches, 1):
-                        kb = len(b.encode("utf-8")) / 1000
-                        with st.expander(f"批次 {k} / {len(batches)}　（约 {kb:,.0f} KB）",
-                                         expanded=(k == 1)):
-                            st.code(b, language="sql")
-                            _copy_button(b, "📋 复制 SQL")
-                            st.download_button(
-                                f"⬇️ 下载 part{k:02d}.sql",
-                                b,
-                                file_name=f"phone_match_odps_part{k:02d}.sql",
-                                mime="text/plain; charset=utf-8",
-                                key=f"dl_sql_{k}",
-                            )
-
-# ── Tab 2：MC 云端执行 ────────────────────────────────────────────────────────
-with tab_cloud:
-    st.markdown(
-        "用 ECS 实例 RAM 角色（无 AccessKey）直连 MaxCompute 执行匹配 SQL，"
-        "结果在页面内展示并可下载 CSV。仅在已绑定 RAM 角色的阿里云 ECS 上可用。"
-    )
-
-    _cfg = load_config_from_env()
-    st.markdown(
-        f'<div class="metric-row">'
-        f'<span class="metric-chip">项目 {_cfg.project}</span>'
-        f'<span class="metric-chip">Endpoint {_cfg.endpoint}</span>'
-        f'<span class="metric-chip green">凭证：ECS RAM 角色（无 AK）</span>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-
-    c1, c2 = st.columns(2, gap="large")
-    with c1:
-        cloud_table = st.text_input("用户表", value=DEFAULT_MC_USER_TABLE, key="cloud_mc_table")
-        cloud_cipher = st.text_input("密文列", value=DEFAULT_MC_CIPHER_COLUMN, key="cloud_cipher")
-    with c2:
-        cloud_pt = st.text_input("分区条件", value=DEFAULT_MC_PARTITION_EXPR, key="cloud_pt")
-        cloud_login = st.text_input("登录名列", value="login_name", key="cloud_login")
-    cloud_extra = st.text_input(
-        "附加 AND 条件（可空）", value="", key="cloud_extra",
-        placeholder="例：business_line = 'bp'",
-    )
-
-    st.session_state.setdefault("cloud_stage", "idle")
-
-    # MC 单条 SQL 上限 2,097,152 字节；留余量并计入注释（构建时含注释，提交前再剥离）
-    _CLOUD_SQL_MAX_BYTES = 1_900_000
-
-    def _build_cloud_batches() -> list[str]:
-        def _one(rows: list[str]) -> str:
-            if is_md5_mode:
-                return build_mc_md5_match_sql(
-                    rows,
-                    mc_table=cloud_table.strip(), login_column=cloud_login.strip(),
-                    cipher_column=cloud_cipher.strip(), partition_predicate=cloud_pt.strip(),
-                    extra_where=cloud_extra.strip() or None,
-                )
-            return build_mc_online_sql(
-                rows,
-                mc_table=cloud_table.strip(), login_column=cloud_login.strip(),
-                cipher_column=cloud_cipher.strip(), partition_predicate=cloud_pt.strip(),
-                extra_where=cloud_extra.strip() or None,
-            )
-        batches = build_sql_batches(phones_list, _one, max_bytes=_CLOUD_SQL_MAX_BYTES)
-        return [sql_for_cloud(b) for b in batches]
-
-    def _submit_batch(idx: int) -> None:
-        odps = get_odps(_cfg)
-        batches = st.session_state["cloud_batches"]
-        body, hints = split_sql_hints(batches[idx])  # set 行作为 hint，避免多语句报错
-        st.session_state["cloud_instance_id"] = submit_sql(odps, body, hints=hints)
-        st.session_state["cloud_batch_idx"] = idx
-        st.session_state["cloud_started_at"] = time.time()
-
-    if st.button("☁️ 云端执行", type="primary", key="btn_cloud"):
-        if not phones_list:
-            st.warning("请先在上方填写或上传数据（明文手机号或 MD5 密文）")
-        else:
+                st.session_state["sql_batches"] = batches
+                st.session_state["sql_meta"] = {
+                    "n": len(phones_list), "unit": unit,
+                    "total_chars": total_chars, "max_kb": int(max_kb),
+                    "oversize": oversize,
+                }
+                st.session_state["last_sql"] = batches[0]
+                st.session_state["last_action"] = "sql"
+                st.success("✓ SQL 已生成，请切到「③  结果」查看与下载。")
+    else:
+        if st.button("☁️ 云端执行", type="primary", key="btn_cloud", disabled=not phones_list):
             try:
-                st.session_state["cloud_batches"] = _build_cloud_batches()
+                _raw = build_sql_batches(phones_list, _builder, max_bytes=_CLOUD_SQL_MAX_BYTES)
+                st.session_state["cloud_batches"] = [sql_for_cloud(b) for b in _raw]
                 st.session_state["cloud_results"] = []
                 _submit_batch(0)
                 st.session_state["cloud_stage"] = "running"
                 st.session_state.pop("cloud_error", None)
                 st.session_state.pop("cloud_trace", None)
+                st.session_state["last_action"] = "cloud"
                 st.rerun()
             except Exception as e:
                 st.session_state["cloud_stage"] = "failed"
                 st.session_state["cloud_error"] = str(e)
                 st.session_state["cloud_trace"] = traceback.format_exc()
+                st.session_state["last_action"] = "cloud"
 
-    stage = st.session_state.get("cloud_stage", "idle")
-    inst_id = st.session_state.get("cloud_instance_id")
+    if phones_list:
+        _run_label = "云端执行" if is_cloud else "生成 SQL"
+        st.caption(f"已就绪 {len(phones_list):,} 条输入 · 点「{_run_label}」后结果见「③  结果」")
 
-    if stage == "running" and inst_id:
-        batches = st.session_state.get("cloud_batches", [])
-        idx = st.session_state.get("cloud_batch_idx", 0)
-        nb = len(batches)
-        with st.status(f"云端执行中… 批次 {idx + 1}/{nb}", expanded=True) as status:
-            try:
-                elapsed = time.time() - st.session_state.get("cloud_started_at", time.time())
-                if elapsed > 300:  # 每批轮询超时上限 5 分钟
-                    odps = get_odps(_cfg)
-                    st.session_state["cloud_logview"] = logview_url(odps, inst_id)
-                    st.session_state["cloud_stage"] = "failed"
-                    st.session_state["cloud_error"] = (
-                        f"批次 {idx + 1}/{nb} 轮询超过 5 分钟未完成，已停止等待；可凭 Logview 去控制台查看作业。"
-                    )
-                    st.rerun()
-                odps = get_odps(_cfg)
-                state = poll(odps, inst_id)
-                st.write(f"批次 {idx + 1}/{nb} 状态：{state}（已等待 {int(elapsed)}s）")
-                if state == "Running":
-                    time.sleep(2)
-                    st.rerun()
-                elif state == "Success":
-                    st.session_state["cloud_results"].append(fetch_result(odps, inst_id))
-                    st.session_state["cloud_logview"] = logview_url(odps, inst_id)
-                    if idx + 1 < nb:
-                        _submit_batch(idx + 1)  # 继续下一批
-                        st.rerun()
-                    else:
-                        parts = st.session_state.get("cloud_results", [])
-                        st.session_state["cloud_df"] = (
-                            pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
-                        )
-                        st.session_state["cloud_stage"] = "done"
-                        status.update(label="执行完成", state="complete")
-                        st.rerun()
-                else:  # Failure
-                    st.session_state["cloud_logview"] = logview_url(odps, inst_id)
-                    st.session_state["cloud_stage"] = "failed"
-                    st.session_state["cloud_error"] = f"批次 {idx + 1}/{nb} SQL 执行失败，请查看 Logview"
-                    st.rerun()
-            except Exception as e:
-                st.session_state["cloud_stage"] = "failed"
-                st.session_state["cloud_error"] = str(e)
-                st.session_state["cloud_trace"] = traceback.format_exc()
-                st.rerun()
+# ── 步骤③：结果 ──────────────────────────────────────────────────────────────
+with tab_result:
+    action = st.session_state.get("last_action")
 
-    if stage == "done":
-        df = st.session_state.get("cloud_df")
-        n = 0 if df is None else len(df)
-        nb = len(st.session_state.get("cloud_batches", []))
-        batch_chip = f'<span class="metric-chip">共 {nb} 批</span>' if nb > 1 else ""
+    if action == "sql" and st.session_state.get("sql_batches"):
+        batches = st.session_state["sql_batches"]
+        meta = st.session_state.get("sql_meta", {})
+        _mkb = meta.get("max_kb", 90)
         st.markdown(
             f'<div class="metric-row">'
-            f'<span class="metric-chip green">✓ 执行成功</span>'
-            f'<span class="metric-chip">{n:,} 行结果</span>'
-            f'{batch_chip}'
+            f'<span class="metric-chip green">✓ SQL 生成成功</span>'
+            f'<span class="metric-chip">{meta.get("n", 0):,} {meta.get("unit", "")}</span>'
+            f'<span class="metric-chip">共 {len(batches)} 批</span>'
+            f'<span class="metric-chip">{meta.get("total_chars", 0):,} 字符</span>'
             f'</div>',
             unsafe_allow_html=True,
         )
-        if st.session_state.get("cloud_logview"):
-            st.markdown(f"[🔗 MaxCompute Logview]({st.session_state['cloud_logview']})")
-        if df is not None:
-            st.dataframe(df, use_container_width=True, height=420)
+        _oversize = meta.get("oversize") or []
+        if _oversize:
+            st.warning(
+                f"第 {_oversize} 批单批仍超过 {_mkb}KB（可能单行过长），请调高阈值或检查输入。"
+            )
+        if len(batches) == 1:
+            sql = batches[0]
+            st.code(sql, language="sql")
+            _copy_button(sql, "📋 复制 SQL")
             st.download_button(
-                "⬇️ 下载结果 CSV",
-                df.to_csv(index=False).encode("utf-8-sig"),
-                file_name="phone_match_result.csv",
-                mime="text/csv; charset=utf-8",
-                key="dl_cloud_csv",
+                "⬇️ 下载 phone_match_odps.sql", sql,
+                file_name="phone_match_odps.sql",
+                mime="text/plain; charset=utf-8", key="dl_sql",
+            )
+        else:
+            st.info(f"已拆成 {len(batches)} 批，请逐批在 DataWorks 运行（结果可直接合并）。")
+            zip_buf = io.BytesIO()
+            with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                for k, b in enumerate(batches, 1):
+                    zf.writestr(f"phone_match_odps_part{k:02d}.sql", b)
+            st.download_button(
+                f"⬇️ 打包下载全部 {len(batches)} 批 (.zip)", zip_buf.getvalue(),
+                file_name="phone_match_odps_batches.zip",
+                mime="application/zip", key="dl_zip",
+            )
+            for k, b in enumerate(batches, 1):
+                kb = len(b.encode("utf-8")) / 1000
+                with st.expander(f"批次 {k} / {len(batches)}　（约 {kb:,.0f} KB）", expanded=(k == 1)):
+                    st.code(b, language="sql")
+                    _copy_button(b, "📋 复制 SQL")
+                    st.download_button(
+                        f"⬇️ 下载 part{k:02d}.sql", b,
+                        file_name=f"phone_match_odps_part{k:02d}.sql",
+                        mime="text/plain; charset=utf-8", key=f"dl_sql_{k}",
+                    )
+
+    elif action == "cloud":
+        stage = st.session_state.get("cloud_stage", "idle")
+        inst_id = st.session_state.get("cloud_instance_id")
+
+        if stage == "running" and inst_id:
+            batches = st.session_state.get("cloud_batches", [])
+            idx = st.session_state.get("cloud_batch_idx", 0)
+            nb = len(batches)
+            with st.status(f"云端执行中… 批次 {idx + 1}/{nb}", expanded=True) as status:
+                try:
+                    elapsed = time.time() - st.session_state.get("cloud_started_at", time.time())
+                    if elapsed > 300:  # 每批轮询超时上限 5 分钟
+                        odps = get_odps(_cfg)
+                        st.session_state["cloud_logview"] = logview_url(odps, inst_id)
+                        st.session_state["cloud_stage"] = "failed"
+                        st.session_state["cloud_error"] = (
+                            f"批次 {idx + 1}/{nb} 轮询超过 5 分钟未完成，已停止等待；可凭 Logview 去控制台查看作业。"
+                        )
+                        st.rerun()
+                    odps = get_odps(_cfg)
+                    state = poll(odps, inst_id)
+                    st.write(f"批次 {idx + 1}/{nb} 状态：{state}（已等待 {int(elapsed)}s）")
+                    if state == "Running":
+                        time.sleep(2)
+                        st.rerun()
+                    elif state == "Success":
+                        st.session_state["cloud_results"].append(fetch_result(odps, inst_id))
+                        st.session_state["cloud_logview"] = logview_url(odps, inst_id)
+                        if idx + 1 < nb:
+                            _submit_batch(idx + 1)  # 继续下一批
+                            st.rerun()
+                        else:
+                            parts = st.session_state.get("cloud_results", [])
+                            st.session_state["cloud_df"] = (
+                                pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+                            )
+                            st.session_state["cloud_stage"] = "done"
+                            status.update(label="执行完成", state="complete")
+                            st.rerun()
+                    else:  # Failure
+                        st.session_state["cloud_logview"] = logview_url(odps, inst_id)
+                        st.session_state["cloud_stage"] = "failed"
+                        st.session_state["cloud_error"] = f"批次 {idx + 1}/{nb} SQL 执行失败，请查看 Logview"
+                        st.rerun()
+                except Exception as e:
+                    st.session_state["cloud_stage"] = "failed"
+                    st.session_state["cloud_error"] = str(e)
+                    st.session_state["cloud_trace"] = traceback.format_exc()
+                    st.rerun()
+
+        if stage == "done":
+            df = st.session_state.get("cloud_df")
+            n = 0 if df is None else len(df)
+            nb = len(st.session_state.get("cloud_batches", []))
+            batch_chip = f'<span class="metric-chip">共 {nb} 批</span>' if nb > 1 else ""
+            st.markdown(
+                f'<div class="metric-row">'
+                f'<span class="metric-chip green">✓ 执行成功</span>'
+                f'<span class="metric-chip">{n:,} 行结果</span>'
+                f'{batch_chip}'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+            if st.session_state.get("cloud_logview"):
+                st.markdown(f"[🔗 MaxCompute Logview]({st.session_state['cloud_logview']})")
+            if df is not None:
+                st.dataframe(df, use_container_width=True, height=420)
+                st.download_button(
+                    "⬇️ 下载结果 CSV",
+                    df.to_csv(index=False).encode("utf-8-sig"),
+                    file_name="phone_match_result.csv",
+                    mime="text/csv; charset=utf-8", key="dl_cloud_csv",
+                )
+
+        if stage == "failed":
+            st.error(f"云端执行失败：{st.session_state.get('cloud_error', '未知错误')}")
+            if st.session_state.get("cloud_logview"):
+                st.markdown(f"[🔗 MaxCompute Logview]({st.session_state['cloud_logview']})")
+            if st.session_state.get("cloud_trace"):
+                with st.expander("查看完整错误堆栈（排查用）", expanded=False):
+                    st.code(st.session_state["cloud_trace"], language="text")
+            st.caption(
+                "排查：① ECS 是否绑定了具备 MaxCompute 权限的 RAM 角色；"
+                "② 该角色是否为 MC 项目成员并有表 SELECT + Tunnel Download 权限。"
             )
 
-    if stage == "failed":
-        st.error(f"云端执行失败：{st.session_state.get('cloud_error', '未知错误')}")
-        if st.session_state.get("cloud_logview"):
-            st.markdown(f"[🔗 MaxCompute Logview]({st.session_state['cloud_logview']})")
-        if st.session_state.get("cloud_trace"):
-            with st.expander("查看完整错误堆栈（排查用）", expanded=False):
-                st.code(st.session_state["cloud_trace"], language="text")
-        st.caption(
-            "排查：① ECS 是否绑定了具备 MaxCompute 权限的 RAM 角色；"
-            "② 该角色是否为 MC 项目成员并有表 SELECT + Tunnel Download 权限。"
-        )
+    else:
+        st.info("在「②  执行」运行后，结果会显示在这里。")

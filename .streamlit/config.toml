@@ -12,3 +12,14 @@ gatherUsageStats = false
 
 [runner]
 fastReruns = true
+
+# 视觉方向 A「清爽浅色 · 专业数据工具」：白底 + 单一靛蓝强调。
+# 让 Streamlit 原生组件（单选、输入框、Tab、数据表）与自定义 CSS 统一成浅色，
+# 修掉此前「深色 CSS 跑在默认浅色主题上」导致的分裂。
+[theme]
+base = "light"
+primaryColor = "#4f46e5"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f6f8fb"
+textColor = "#0f172a"
+font = "sans serif"
