@@ -553,8 +553,18 @@ with tab_exec:
         st.session_state["cloud_batch_idx"] = idx
         st.session_state["cloud_started_at"] = time.time()
 
+    def _clear_results() -> None:
+        """清空③里的历史结果（含另一模式），避免新一次执行时残留旧记录。"""
+        for _k in ("sql_batches", "sql_meta", "cloud_df", "cloud_batches",
+                   "cloud_results", "cloud_instance_id", "cloud_logview",
+                   "cloud_error", "cloud_trace", "cloud_batch_idx",
+                   "cloud_started_at"):
+            st.session_state.pop(_k, None)
+        st.session_state["cloud_stage"] = "idle"
+
     if not is_cloud:
         if st.button("🗄️ 生成 SQL", type="primary", key="btn_sql", disabled=not phones_list):
+            _clear_results()
             max_bytes = int(max_kb) * 1000
             try:
                 batches = build_sql_batches(phones_list, _builder, max_bytes=max_bytes)
@@ -577,6 +587,7 @@ with tab_exec:
                 st.success("✓ SQL 已生成，请切到「③  结果」查看与下载。")
     else:
         if st.button("☁️ 云端执行", type="primary", key="btn_cloud", disabled=not phones_list):
+            _clear_results()
             try:
                 _raw = build_sql_batches(phones_list, _builder, max_bytes=_CLOUD_SQL_MAX_BYTES)
                 st.session_state["cloud_batches"] = [sql_for_cloud(b) for b in _raw]
