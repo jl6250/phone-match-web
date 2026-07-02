@@ -55,17 +55,38 @@ def _keep_strip(s: str) -> str:
     return s.strip()
 
 
-def _copy_button(text: str, label: str = "📋 复制") -> None:
+# 内联 SVG 图标（Lucide 风格），替代 emoji：单色 currentColor，随文字色走，可被 token 控制
+_COPY_ICON = ('<svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
+              'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+              'stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px">'
+              '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>'
+              '<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>')
+_CHECK_ICON = ('<svg width="13" height="13" viewBox="0 0 24 24" fill="none" '
+               'stroke="currentColor" stroke-width="2.5" stroke-linecap="round" '
+               'stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px">'
+               '<path d="M20 6 9 17l-5-5"/></svg>')
+_X_ICON = ('<svg width="15" height="15" viewBox="0 0 24 24" fill="none" '
+           'stroke="currentColor" stroke-width="2.5" stroke-linecap="round" '
+           'stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px">'
+           '<path d="M18 6 6 18M6 6l12 12"/></svg>')
+
+
+def _copy_button(text: str, label: str = "复制 SQL") -> None:
     payload = json.dumps(text)
+    idle_html = json.dumps(_COPY_ICON + label)
+    done_html = json.dumps(_CHECK_ICON + "已复制")
+    fail_html = json.dumps(_X_ICON + "失败")
     components.html(
         f"""<!DOCTYPE html><html><head><style>
-          button{{background:#7B2FBE;color:#fff;border:none;border-radius:6px;
-                  padding:6px 18px;font-size:14px;cursor:pointer;font-family:sans-serif;}}
-          button:hover{{background:#6a26a8;}}
+          button{{background:#4f46e5;color:#fff;border:none;border-radius:6px;
+                  padding:6px 18px;font-size:14px;cursor:pointer;font-family:sans-serif;
+                  display:inline-flex;align-items:center;transition:background .15s ease;}}
+          button:hover{{background:#4338ca;}}
         </style></head><body>
-        <button id="cb" onclick="doCopy()">📋 复制 SQL</button>
+        <button id="cb" onclick="doCopy()">{_COPY_ICON}{label}</button>
         <script>
           var _TEXT = {payload};
+          var _IDLE = {idle_html}, _DONE = {done_html}, _FAIL = {fail_html};
           function doCopy() {{
             var t = document.createElement('textarea');
             t.value = _TEXT;
@@ -75,12 +96,12 @@ def _copy_button(text: str, label: str = "📋 复制") -> None:
             document.body.removeChild(t);
             var b = document.getElementById('cb');
             if (ok) {{
-              b.textContent = '✓ 已复制'; b.style.background = '#2d8a4e';
+              b.innerHTML = _DONE; b.style.background = '#047857';
             }} else {{
-              b.textContent = '✗ 失败'; b.style.background = '#c0392b';
+              b.innerHTML = _FAIL; b.style.background = '#b91c1c';
             }}
             setTimeout(function() {{
-              b.textContent = '📋 复制 SQL'; b.style.background = '#7B2FBE';
+              b.innerHTML = _IDLE; b.style.background = '#4f46e5';
             }}, 2000);
           }}
         </script>
@@ -91,7 +112,7 @@ def _copy_button(text: str, label: str = "📋 复制") -> None:
 
 st.set_page_config(
     page_title="手机号 MD5 对照工具",
-    page_icon="📱",
+    page_icon=":material/smartphone:",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -165,14 +186,16 @@ html, body, [class*="css"] { font-family: "PingFang SC", "Helvetica Neue", sans-
     font-size: 0.78rem;
     color: #4f46e5;
     font-weight: 500;
+    font-variant-numeric: tabular-nums;  /* 计数数字等宽，避免刷新时抖动 */
 }
-.metric-chip.green  { background:#ecfdf5; border-color:#a7f3d0; color:#059669; }
+/* 状态色均已核对 WCAG AA ≥4.5:1（绿 5.21 / 红 5.91 / 黄 4.84） */
+.metric-chip.green  { background:#ecfdf5; border-color:#a7f3d0; color:#047857; }
 .metric-chip.yellow { background:#fffbeb; border-color:#fde68a; color:#b45309; }
-.metric-chip.red    { background:#fef2f2; border-color:#fecaca; color:#dc2626; }
+.metric-chip.red    { background:#fef2f2; border-color:#fecaca; color:#b91c1c; }
 /* 顶部标题条内的 chip 更低调，作为安静的说明条而非状态徽标 */
 .hero-chips { display: flex; gap: 7px; margin-top: 14px; flex-wrap: wrap; }
 .hero-chips .metric-chip {
-    background: #f5f6fb; border-color: #e6e9ef; color: #64748b;
+    background: #f5f6fb; border-color: #e6e9ef; color: #475569;  /* was #64748b (4.41:1 fail) → 7.02:1 */
 }
 
 /* ===== 按钮优化 ===== */
@@ -180,7 +203,7 @@ html, body, [class*="css"] { font-family: "PingFang SC", "Helvetica Neue", sans-
     border-radius: 9px !important;
     font-weight: 600 !important;
     font-size: 0.88rem !important;
-    transition: all .15s ease !important;
+    transition: background .15s ease, box-shadow .15s ease, transform .15s ease !important;
     padding: 0.5rem 1.4rem !important;
 }
 .stButton > button[kind="primary"] {
@@ -233,7 +256,7 @@ html, body, [class*="css"] { font-family: "PingFang SC", "Helvetica Neue", sans-
 [data-testid="stDownloadButton"] > button {
     border-radius: 9px !important;
     border: 1px solid #a7f3d0 !important;
-    color: #059669 !important;
+    color: #047857 !important;  /* was #059669 (3.58:1 fail) → 5.21:1 on #ecfdf5 */
     background: #ecfdf5 !important;
     font-weight: 600 !important;
 }
@@ -256,6 +279,16 @@ html, body, [class*="css"] { font-family: "PingFang SC", "Helvetica Neue", sans-
 
 /* ===== 分割线 ===== */
 hr { border-color: #e6e9ef !important; }
+
+/* ===== 尊重系统「减弱动态效果」偏好 ===== */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+    .stButton > button[kind="primary"]:hover { transform: none !important; }
+}
 </style>
 """,
     unsafe_allow_html=True,
@@ -265,7 +298,7 @@ hr { border-color: #e6e9ef !important; }
 st.markdown(
     """
 <div class="hero-card">
-  <div class="hero-logo">📱</div>
+  <div class="hero-logo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></div>
   <div>
     <p class="hero-title">手机号 MD5 对照工具</p>
     <p class="hero-sub">明文 / MD5 密文 &nbsp;→&nbsp; 与数仓 <code>login_name</code> 关联匹配</p>
@@ -277,7 +310,7 @@ st.markdown(
 
 
 # ─── 匹配规则（默认折叠，减少首屏文字） ────────────────────────────────────────
-with st.expander("ⓘ 匹配规则与支持格式", expanded=False):
+with st.expander("匹配规则与支持格式", icon=":material/info:", expanded=False):
     st.markdown(
         "- 明文自动转 MD5（10 位去 0 / 11 位补 0），严格校验纯数字 10–13 位\n"
         "- MD5 密文直接匹配数仓密文列\n"
@@ -448,7 +481,7 @@ with tab_input:
             invalid_chip = f'<span class="metric-chip yellow">忽略 {invalid_n:,} 条无效（非 32 位 hex）</span>' if invalid_n else ""
             st.markdown(
                 f'<div class="metric-row">'
-                f'<span class="metric-chip green">✓ 已解析 {len(valid_md5):,} 条有效 MD5</span>'
+                f'<span class="metric-chip green">{_CHECK_ICON}已解析 {len(valid_md5):,} 条有效 MD5</span>'
                 f'<span class="metric-chip">去重后 {uniq_count:,} 条唯一值</span>'
                 f'{dup_chip}{invalid_chip}'
                 f'</div>',
@@ -467,7 +500,7 @@ with tab_input:
             invalid_chip = f'<span class="metric-chip yellow">忽略 {invalid_n:,} 条非法（非纯数字/位数不符）</span>' if invalid_n else ""
             st.markdown(
                 f'<div class="metric-row">'
-                f'<span class="metric-chip green">✓ 已解析 {len(valid_phones):,} 条合法手机号</span>'
+                f'<span class="metric-chip green">{_CHECK_ICON}已解析 {len(valid_phones):,} 条合法手机号</span>'
                 f'<span class="metric-chip">去重后 {uniq_count:,} 条唯一值</span>'
                 f'{dup_chip}{invalid_chip}'
                 f'</div>',
@@ -492,7 +525,7 @@ with tab_exec:
 
     exec_mode = st.radio(
         "执行方式",
-        options=["🗄️ 生成 SQL", "☁️ 云端执行"],
+        options=[":material/database: 生成 SQL", ":material/cloud: 云端执行"],
         horizontal=True,
         key="exec_mode",
         help="生成 SQL：产出可复制到 DataWorks / MaxCompute 控制台运行的 SQL；"
@@ -563,7 +596,7 @@ with tab_exec:
         st.session_state["cloud_stage"] = "idle"
 
     if not is_cloud:
-        if st.button("🗄️ 生成 SQL", type="primary", key="btn_sql", disabled=not phones_list):
+        if st.button("生成 SQL", type="primary", icon=":material/database:", key="btn_sql", disabled=not phones_list):
             _clear_results()
             max_bytes = int(max_kb) * 1000
             try:
@@ -584,9 +617,9 @@ with tab_exec:
                 }
                 st.session_state["last_sql"] = batches[0]
                 st.session_state["last_action"] = "sql"
-                st.success("✓ SQL 已生成，请切到「③  结果」查看与下载。")
+                st.success("SQL 已生成，请切到「③  结果」查看与下载。")
     else:
-        if st.button("☁️ 云端执行", type="primary", key="btn_cloud", disabled=not phones_list):
+        if st.button("云端执行", type="primary", icon=":material/cloud:", key="btn_cloud", disabled=not phones_list):
             _clear_results()
             try:
                 _raw = build_sql_batches(phones_list, _builder, max_bytes=_CLOUD_SQL_MAX_BYTES)
@@ -625,7 +658,7 @@ with tab_result:
             _mkb = meta.get("max_kb", 90)
             st.markdown(
                 f'<div class="metric-row">'
-                f'<span class="metric-chip green">✓ SQL 生成成功</span>'
+                f'<span class="metric-chip green">{_CHECK_ICON}SQL 生成成功</span>'
                 f'<span class="metric-chip">{meta.get("n", 0):,} {meta.get("unit", "")}</span>'
                 f'<span class="metric-chip">共 {len(batches)} 批</span>'
                 f'<span class="metric-chip">{meta.get("total_chars", 0):,} 字符</span>'
@@ -640,11 +673,11 @@ with tab_result:
             if len(batches) == 1:
                 sql = batches[0]
                 st.code(sql, language="sql")
-                _copy_button(sql, "📋 复制 SQL")
+                _copy_button(sql, "复制 SQL")
                 st.download_button(
-                    "⬇️ 下载 phone_match_odps.sql", sql,
+                    "下载 phone_match_odps.sql", sql,
                     file_name="phone_match_odps.sql",
-                    mime="text/plain; charset=utf-8", key="dl_sql",
+                    mime="text/plain; charset=utf-8", icon=":material/download:", key="dl_sql",
                 )
             else:
                 st.info(f"已拆成 {len(batches)} 批，请逐批在 DataWorks 运行（结果可直接合并）。")
@@ -653,19 +686,19 @@ with tab_result:
                     for k, b in enumerate(batches, 1):
                         zf.writestr(f"phone_match_odps_part{k:02d}.sql", b)
                 st.download_button(
-                    f"⬇️ 打包下载全部 {len(batches)} 批 (.zip)", zip_buf.getvalue(),
+                    f"打包下载全部 {len(batches)} 批 (.zip)", zip_buf.getvalue(),
                     file_name="phone_match_odps_batches.zip",
-                    mime="application/zip", key="dl_zip",
+                    mime="application/zip", icon=":material/download:", key="dl_zip",
                 )
                 for k, b in enumerate(batches, 1):
                     kb = len(b.encode("utf-8")) / 1000
                     with st.expander(f"批次 {k} / {len(batches)}　（约 {kb:,.0f} KB）", expanded=(k == 1)):
                         st.code(b, language="sql")
-                        _copy_button(b, "📋 复制 SQL")
+                        _copy_button(b, "复制 SQL")
                         st.download_button(
-                            f"⬇️ 下载 part{k:02d}.sql", b,
+                            f"下载 part{k:02d}.sql", b,
                             file_name=f"phone_match_odps_part{k:02d}.sql",
-                            mime="text/plain; charset=utf-8", key=f"dl_sql_{k}",
+                            mime="text/plain; charset=utf-8", icon=":material/download:", key=f"dl_sql_{k}",
                         )
 
     elif action == "cloud":
@@ -727,27 +760,27 @@ with tab_result:
                 batch_chip = f'<span class="metric-chip">共 {nb} 批</span>' if nb > 1 else ""
                 st.markdown(
                     f'<div class="metric-row">'
-                    f'<span class="metric-chip green">✓ 执行成功</span>'
+                    f'<span class="metric-chip green">{_CHECK_ICON}执行成功</span>'
                     f'<span class="metric-chip">{n:,} 行结果</span>'
                     f'{batch_chip}'
                     f'</div>',
                     unsafe_allow_html=True,
                 )
                 if st.session_state.get("cloud_logview"):
-                    st.markdown(f"[🔗 MaxCompute Logview]({st.session_state['cloud_logview']})")
+                    st.markdown(f":material/open_in_new: [MaxCompute Logview]({st.session_state['cloud_logview']})")
                 if df is not None:
                     st.dataframe(df, use_container_width=True, height=420)
                     st.download_button(
-                        "⬇️ 下载结果 CSV",
+                        "下载结果 CSV",
                         df.to_csv(index=False).encode("utf-8-sig"),
                         file_name="phone_match_result.csv",
-                        mime="text/csv; charset=utf-8", key="dl_cloud_csv",
+                        mime="text/csv; charset=utf-8", icon=":material/download:", key="dl_cloud_csv",
                     )
 
             if stage == "failed":
                 st.error(f"云端执行失败：{st.session_state.get('cloud_error', '未知错误')}")
                 if st.session_state.get("cloud_logview"):
-                    st.markdown(f"[🔗 MaxCompute Logview]({st.session_state['cloud_logview']})")
+                    st.markdown(f":material/open_in_new: [MaxCompute Logview]({st.session_state['cloud_logview']})")
                 if st.session_state.get("cloud_trace"):
                     with st.expander("查看完整错误堆栈（排查用）", expanded=False):
                         st.code(st.session_state["cloud_trace"], language="text")
