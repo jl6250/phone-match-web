@@ -611,141 +611,152 @@ with tab_exec:
 # ── 步骤③：结果 ──────────────────────────────────────────────────────────────
 with tab_result:
     action = st.session_state.get("last_action")
+    # 每种结果渲染进独立占位符；非当前类型显式 .empty() 清空。云端轮询用
+    # st.rerun() 循环，run 不会正常结束、Streamlit 无法回收上一次(如生成 SQL)
+    # 的元素；显式 .empty() 的清空 delta 会在 rerun 中断前提交，从而消除③残留。
+    _sql_slot = st.empty()
+    _cloud_slot = st.empty()
 
     if action == "sql" and st.session_state.get("sql_batches"):
-        batches = st.session_state["sql_batches"]
-        meta = st.session_state.get("sql_meta", {})
-        _mkb = meta.get("max_kb", 90)
-        st.markdown(
-            f'<div class="metric-row">'
-            f'<span class="metric-chip green">✓ SQL 生成成功</span>'
-            f'<span class="metric-chip">{meta.get("n", 0):,} {meta.get("unit", "")}</span>'
-            f'<span class="metric-chip">共 {len(batches)} 批</span>'
-            f'<span class="metric-chip">{meta.get("total_chars", 0):,} 字符</span>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-        _oversize = meta.get("oversize") or []
-        if _oversize:
-            st.warning(
-                f"第 {_oversize} 批单批仍超过 {_mkb}KB（可能单行过长），请调高阈值或检查输入。"
-            )
-        if len(batches) == 1:
-            sql = batches[0]
-            st.code(sql, language="sql")
-            _copy_button(sql, "📋 复制 SQL")
-            st.download_button(
-                "⬇️ 下载 phone_match_odps.sql", sql,
-                file_name="phone_match_odps.sql",
-                mime="text/plain; charset=utf-8", key="dl_sql",
-            )
-        else:
-            st.info(f"已拆成 {len(batches)} 批，请逐批在 DataWorks 运行（结果可直接合并）。")
-            zip_buf = io.BytesIO()
-            with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-                for k, b in enumerate(batches, 1):
-                    zf.writestr(f"phone_match_odps_part{k:02d}.sql", b)
-            st.download_button(
-                f"⬇️ 打包下载全部 {len(batches)} 批 (.zip)", zip_buf.getvalue(),
-                file_name="phone_match_odps_batches.zip",
-                mime="application/zip", key="dl_zip",
-            )
-            for k, b in enumerate(batches, 1):
-                kb = len(b.encode("utf-8")) / 1000
-                with st.expander(f"批次 {k} / {len(batches)}　（约 {kb:,.0f} KB）", expanded=(k == 1)):
-                    st.code(b, language="sql")
-                    _copy_button(b, "📋 复制 SQL")
-                    st.download_button(
-                        f"⬇️ 下载 part{k:02d}.sql", b,
-                        file_name=f"phone_match_odps_part{k:02d}.sql",
-                        mime="text/plain; charset=utf-8", key=f"dl_sql_{k}",
-                    )
-
-    elif action == "cloud":
-        stage = st.session_state.get("cloud_stage", "idle")
-        inst_id = st.session_state.get("cloud_instance_id")
-
-        if stage == "running" and inst_id:
-            batches = st.session_state.get("cloud_batches", [])
-            idx = st.session_state.get("cloud_batch_idx", 0)
-            nb = len(batches)
-            with st.status(f"云端执行中… 批次 {idx + 1}/{nb}", expanded=True) as status:
-                try:
-                    elapsed = time.time() - st.session_state.get("cloud_started_at", time.time())
-                    if elapsed > 300:  # 每批轮询超时上限 5 分钟
-                        odps = get_odps(_cfg)
-                        st.session_state["cloud_logview"] = logview_url(odps, inst_id)
-                        st.session_state["cloud_stage"] = "failed"
-                        st.session_state["cloud_error"] = (
-                            f"批次 {idx + 1}/{nb} 轮询超过 5 分钟未完成，已停止等待；可凭 Logview 去控制台查看作业。"
-                        )
-                        st.rerun()
-                    odps = get_odps(_cfg)
-                    state = poll(odps, inst_id)
-                    st.write(f"批次 {idx + 1}/{nb} 状态：{state}（已等待 {int(elapsed)}s）")
-                    if state == "Running":
-                        time.sleep(2)
-                        st.rerun()
-                    elif state == "Success":
-                        st.session_state["cloud_results"].append(fetch_result(odps, inst_id))
-                        st.session_state["cloud_logview"] = logview_url(odps, inst_id)
-                        if idx + 1 < nb:
-                            _submit_batch(idx + 1)  # 继续下一批
-                            st.rerun()
-                        else:
-                            parts = st.session_state.get("cloud_results", [])
-                            st.session_state["cloud_df"] = (
-                                pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
-                            )
-                            st.session_state["cloud_stage"] = "done"
-                            status.update(label="执行完成", state="complete")
-                            st.rerun()
-                    else:  # Failure
-                        st.session_state["cloud_logview"] = logview_url(odps, inst_id)
-                        st.session_state["cloud_stage"] = "failed"
-                        st.session_state["cloud_error"] = f"批次 {idx + 1}/{nb} SQL 执行失败，请查看 Logview"
-                        st.rerun()
-                except Exception as e:
-                    st.session_state["cloud_stage"] = "failed"
-                    st.session_state["cloud_error"] = str(e)
-                    st.session_state["cloud_trace"] = traceback.format_exc()
-                    st.rerun()
-
-        if stage == "done":
-            df = st.session_state.get("cloud_df")
-            n = 0 if df is None else len(df)
-            nb = len(st.session_state.get("cloud_batches", []))
-            batch_chip = f'<span class="metric-chip">共 {nb} 批</span>' if nb > 1 else ""
+        _cloud_slot.empty()
+        with _sql_slot.container():
+            batches = st.session_state["sql_batches"]
+            meta = st.session_state.get("sql_meta", {})
+            _mkb = meta.get("max_kb", 90)
             st.markdown(
                 f'<div class="metric-row">'
-                f'<span class="metric-chip green">✓ 执行成功</span>'
-                f'<span class="metric-chip">{n:,} 行结果</span>'
-                f'{batch_chip}'
+                f'<span class="metric-chip green">✓ SQL 生成成功</span>'
+                f'<span class="metric-chip">{meta.get("n", 0):,} {meta.get("unit", "")}</span>'
+                f'<span class="metric-chip">共 {len(batches)} 批</span>'
+                f'<span class="metric-chip">{meta.get("total_chars", 0):,} 字符</span>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
-            if st.session_state.get("cloud_logview"):
-                st.markdown(f"[🔗 MaxCompute Logview]({st.session_state['cloud_logview']})")
-            if df is not None:
-                st.dataframe(df, use_container_width=True, height=420)
+            _oversize = meta.get("oversize") or []
+            if _oversize:
+                st.warning(
+                    f"第 {_oversize} 批单批仍超过 {_mkb}KB（可能单行过长），请调高阈值或检查输入。"
+                )
+            if len(batches) == 1:
+                sql = batches[0]
+                st.code(sql, language="sql")
+                _copy_button(sql, "📋 复制 SQL")
                 st.download_button(
-                    "⬇️ 下载结果 CSV",
-                    df.to_csv(index=False).encode("utf-8-sig"),
-                    file_name="phone_match_result.csv",
-                    mime="text/csv; charset=utf-8", key="dl_cloud_csv",
+                    "⬇️ 下载 phone_match_odps.sql", sql,
+                    file_name="phone_match_odps.sql",
+                    mime="text/plain; charset=utf-8", key="dl_sql",
+                )
+            else:
+                st.info(f"已拆成 {len(batches)} 批，请逐批在 DataWorks 运行（结果可直接合并）。")
+                zip_buf = io.BytesIO()
+                with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                    for k, b in enumerate(batches, 1):
+                        zf.writestr(f"phone_match_odps_part{k:02d}.sql", b)
+                st.download_button(
+                    f"⬇️ 打包下载全部 {len(batches)} 批 (.zip)", zip_buf.getvalue(),
+                    file_name="phone_match_odps_batches.zip",
+                    mime="application/zip", key="dl_zip",
+                )
+                for k, b in enumerate(batches, 1):
+                    kb = len(b.encode("utf-8")) / 1000
+                    with st.expander(f"批次 {k} / {len(batches)}　（约 {kb:,.0f} KB）", expanded=(k == 1)):
+                        st.code(b, language="sql")
+                        _copy_button(b, "📋 复制 SQL")
+                        st.download_button(
+                            f"⬇️ 下载 part{k:02d}.sql", b,
+                            file_name=f"phone_match_odps_part{k:02d}.sql",
+                            mime="text/plain; charset=utf-8", key=f"dl_sql_{k}",
+                        )
+
+    elif action == "cloud":
+        _sql_slot.empty()
+        with _cloud_slot.container():
+            stage = st.session_state.get("cloud_stage", "idle")
+            inst_id = st.session_state.get("cloud_instance_id")
+
+            if stage == "running" and inst_id:
+                batches = st.session_state.get("cloud_batches", [])
+                idx = st.session_state.get("cloud_batch_idx", 0)
+                nb = len(batches)
+                with st.status(f"云端执行中… 批次 {idx + 1}/{nb}", expanded=True) as status:
+                    try:
+                        elapsed = time.time() - st.session_state.get("cloud_started_at", time.time())
+                        if elapsed > 300:  # 每批轮询超时上限 5 分钟
+                            odps = get_odps(_cfg)
+                            st.session_state["cloud_logview"] = logview_url(odps, inst_id)
+                            st.session_state["cloud_stage"] = "failed"
+                            st.session_state["cloud_error"] = (
+                                f"批次 {idx + 1}/{nb} 轮询超过 5 分钟未完成，已停止等待；可凭 Logview 去控制台查看作业。"
+                            )
+                            st.rerun()
+                        odps = get_odps(_cfg)
+                        state = poll(odps, inst_id)
+                        st.write(f"批次 {idx + 1}/{nb} 状态：{state}（已等待 {int(elapsed)}s）")
+                        if state == "Running":
+                            time.sleep(2)
+                            st.rerun()
+                        elif state == "Success":
+                            st.session_state["cloud_results"].append(fetch_result(odps, inst_id))
+                            st.session_state["cloud_logview"] = logview_url(odps, inst_id)
+                            if idx + 1 < nb:
+                                _submit_batch(idx + 1)  # 继续下一批
+                                st.rerun()
+                            else:
+                                parts = st.session_state.get("cloud_results", [])
+                                st.session_state["cloud_df"] = (
+                                    pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+                                )
+                                st.session_state["cloud_stage"] = "done"
+                                status.update(label="执行完成", state="complete")
+                                st.rerun()
+                        else:  # Failure
+                            st.session_state["cloud_logview"] = logview_url(odps, inst_id)
+                            st.session_state["cloud_stage"] = "failed"
+                            st.session_state["cloud_error"] = f"批次 {idx + 1}/{nb} SQL 执行失败，请查看 Logview"
+                            st.rerun()
+                    except Exception as e:
+                        st.session_state["cloud_stage"] = "failed"
+                        st.session_state["cloud_error"] = str(e)
+                        st.session_state["cloud_trace"] = traceback.format_exc()
+                        st.rerun()
+
+            if stage == "done":
+                df = st.session_state.get("cloud_df")
+                n = 0 if df is None else len(df)
+                nb = len(st.session_state.get("cloud_batches", []))
+                batch_chip = f'<span class="metric-chip">共 {nb} 批</span>' if nb > 1 else ""
+                st.markdown(
+                    f'<div class="metric-row">'
+                    f'<span class="metric-chip green">✓ 执行成功</span>'
+                    f'<span class="metric-chip">{n:,} 行结果</span>'
+                    f'{batch_chip}'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+                if st.session_state.get("cloud_logview"):
+                    st.markdown(f"[🔗 MaxCompute Logview]({st.session_state['cloud_logview']})")
+                if df is not None:
+                    st.dataframe(df, use_container_width=True, height=420)
+                    st.download_button(
+                        "⬇️ 下载结果 CSV",
+                        df.to_csv(index=False).encode("utf-8-sig"),
+                        file_name="phone_match_result.csv",
+                        mime="text/csv; charset=utf-8", key="dl_cloud_csv",
+                    )
+
+            if stage == "failed":
+                st.error(f"云端执行失败：{st.session_state.get('cloud_error', '未知错误')}")
+                if st.session_state.get("cloud_logview"):
+                    st.markdown(f"[🔗 MaxCompute Logview]({st.session_state['cloud_logview']})")
+                if st.session_state.get("cloud_trace"):
+                    with st.expander("查看完整错误堆栈（排查用）", expanded=False):
+                        st.code(st.session_state["cloud_trace"], language="text")
+                st.caption(
+                    "排查：① ECS 是否绑定了具备 MaxCompute 权限的 RAM 角色；"
+                    "② 该角色是否为 MC 项目成员并有表 SELECT + Tunnel Download 权限。"
                 )
 
-        if stage == "failed":
-            st.error(f"云端执行失败：{st.session_state.get('cloud_error', '未知错误')}")
-            if st.session_state.get("cloud_logview"):
-                st.markdown(f"[🔗 MaxCompute Logview]({st.session_state['cloud_logview']})")
-            if st.session_state.get("cloud_trace"):
-                with st.expander("查看完整错误堆栈（排查用）", expanded=False):
-                    st.code(st.session_state["cloud_trace"], language="text")
-            st.caption(
-                "排查：① ECS 是否绑定了具备 MaxCompute 权限的 RAM 角色；"
-                "② 该角色是否为 MC 项目成员并有表 SELECT + Tunnel Download 权限。"
-            )
-
     else:
+        _sql_slot.empty()
+        _cloud_slot.empty()
         st.info("在「②  执行」运行后，结果会显示在这里。")
